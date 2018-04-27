@@ -1,0 +1,2 @@
+-e git+https://github.com/brooksc/mcpipy@8aef3d36cd2f3ae165c12a33fb2a0c61c4d46ddb#egg=mcpi
+-e git+https://github.com/py3minepi/py3minepi@393b599fd6a9341fd4800cdd18498100dbc50d1a#egg=py3minepi
