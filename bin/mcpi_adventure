@@ -1,0 +1,4 @@
+#!/usr/bin/env python
+import mcpi_adventure.command_line
+
+mcpi_adventure.command_line.main()

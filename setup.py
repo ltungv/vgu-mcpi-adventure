@@ -6,7 +6,7 @@ with open('README.md', 'r') as f:
 
 
 setup(
-    name='MincraftPi Adventures',
+    name='mcpi_adventure',
     version='1.0',
     description="A minecraft's mini game created using python on MinecraftPi",
     long_description=long_description,
@@ -19,10 +19,13 @@ setup(
 
     install_requires=[
         'mcpi',
-        'mcpipy'
     ],
 
     scripts=[
         'bin/mcpi_adventure',
     ],
+
+    entry_points={
+        'console_scripts': ['mcpi_adventure=mcpi_adventure.command_line:main'],
+    },
 )
