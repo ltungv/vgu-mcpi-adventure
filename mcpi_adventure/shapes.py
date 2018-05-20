@@ -7,6 +7,9 @@ class Point:
         self.x = x
         self.y = y
 
+    def __repr__(self):
+        return "Point(%d, %d)" % (self.x, self.y)
+
     def __add__(self, other):
         if isinstance(other, self.__class__):
             return Point(self.x + other.x, self.y + other.y)
@@ -15,6 +18,14 @@ class Point:
         if isinstance(other, self.__class__):
             return Point(self.x + other.x, self.y + other.y)
 
+    def __sub__(self, other):
+        if isinstance(other, self.__class__):
+            return Point(self.x - other.x, self.y - other.y)
+
+    def __rsub__(self, other):
+        if isinstance(other, self.__class__):
+            return Point(self.x - other.x, self.y - other.y)
+
     def __mul__(self, other):
         if isinstance(other, int):
             return Point(self.x*other, self.y*other)
@@ -22,6 +33,9 @@ class Point:
     def __rmul__(self, other):
         if isinstance(other, int):
             return Point(self.x*other, self.y*other)
+
+    def inverse(self):
+        return Point(self.y, self.x)
 
     def distance_to(self, other):
         return math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2)
@@ -33,6 +47,9 @@ class Point:
 class Rectangle(object):
     def __init__(self, point1, point2):
         self.set_bounds(point1, point2)
+
+    def __repr__(self):
+        return "Rectangle(%d, %d, %d, %d)" % (self.left, self.right, self.top, self.bottom)
 
     def __iter__(self):
         for pos_y in xrange(self.top, self.bottom):
@@ -53,11 +70,11 @@ class Rectangle(object):
 
         assert self.top < self.bottom, 'Incorrect coordinate'
 
-    def overlaps(self, other):
-        return (self.right >= (other.left - 1) and
-                self.left <= (other.right + 1) and
-                self.top <= (other.bottom + 1) and
-                self.bottom >= (other.top - 1))
+    def overlaps(self, other, off_set=0):
+        return (self.right >= (other.left - off_set) and
+                self.left <= (other.right + off_set) and
+                self.top <= (other.bottom + off_set) and
+                self.bottom >= (other.top - off_set))
 
     def inflate(self, delta):
         return Rectangle(
@@ -75,23 +92,15 @@ class Rectangle(object):
 
 
 class Tiles(Rectangle):
-    def __init__(self, width, height, start_x=0, start_y=0):
-        super(Tiles, self).__init__(Point(start_x, start_y), Point(width, height))
-        self.__tiles = np.ones((width, height), dtype=np.int16)
+    def __init__(self, width, height, init_value=0):
+        super(Tiles, self).__init__(Point(0, 0), Point(width, height))
+        self.__tiles = np.full((width, height), init_value, dtype=int)
 
-    def get_tile(self, pos):
+    def get_tiles(self):
+        return self.__tiles
+
+    def get_val(self, pos):
         return self.__tiles[pos.x, pos.y]
 
-    def set_tile(self, pos, tile_type=0):
-        self.__tiles[pos.x][pos.y] = tile_type
-
-    def inflate(self, delta):
-        return Tiles(
-                    self.right + delta, self.bottom + delta,
-                    self.left - delta, self.top - delta
-                )
-
-    def odd_positions(self):
-        for pos_y in xrange(1, self.bottom, 2):
-            for pos_x in xrange(1, self.right, 2):
-                yield Point(pos_x, pos_y)
+    def set_val(self, pos, value=0):
+        self.__tiles[pos.x, pos.y] = value

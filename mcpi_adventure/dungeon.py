@@ -15,11 +15,14 @@ Steps taken:
     4. Remove dead ends by filling in any tile that is closed on 3 sides.
 '''
 
-from collections import deque
+
 from .shapes import Rectangle, Point, Tiles
+from mcpi.minecraft import Minecraft
+import time
 import numpy as np
 import random
 
+mc = Minecraft.create()
 
 DIRECTIONS = [
     Point(1, 0),
@@ -32,6 +35,7 @@ DIRECTIONS = [
 class Dungeon:
     def __init__(
             self, width, height, n_rooms_tries,
+            start_x=0, start_y=0,
             extra_connector_chance=20,
             room_extra_size=0,
             winding_percent=0):
@@ -47,25 +51,41 @@ class Dungeon:
         self.room_extra_size = room_extra_size
         self.winding_percent = winding_percent
 
-        # TODO: Make tiles a class
-        self.tiles = Tiles(width, height)
+        self.tiles = Tiles(width, height, 1)
 
         self.__rooms = []
-        self.__regions = np.array([[-1 for i in xrange(width)] for j in xrange(height)], dtype=np.int16)
+        self.__regions = Tiles(width, height, -1)
         self.__current_region = -1
 
-    def generate(self):
-        self.__add_rooms()
+        self.__generate()
 
-        for pos in self.tiles.odd_positions():
-            if self.tiles.get_tile(pos) != 1:
-                continue
-            self.__grow_maze(pos)
+    def __generate(self):
+        print("Adding rooms")
+        self.__add_rooms(overlap_offset=5)
+
+        print("Carving wide passage")
+        for pos_y in xrange(2, self.height, 4):
+            for pos_x in xrange(2, self.width, 4):
+                pos = Point(pos_x, pos_y)
+                if self.tiles.get_val(pos) != 1:
+                    continue
+                self.__grow_maze_wide(pos)
+
+        print("Carving narrow passage")
+        for pos_y in xrange(1, self.height, 2):
+            for pos_x in xrange(1, self.width, 2):
+                pos = Point(pos_x, pos_y)
+                if self.tiles.get_val(pos) != 1:
+                    continue
+                self.__grow_maze(pos)
+
+        with open("regions.csv", "wb") as f:
+            np.savetxt(f, self.__regions.get_tiles(), fmt="%-2i", delimiter=",")
 
         self.__connect_regions()
-        self.__remove_dead_ends()
+        # self.__remove_dead_ends()
 
-    def __add_rooms(self):
+    def __add_rooms(self, overlap_offset=0):
         for i in xrange(self.n_rooms_tries):
             room_size = random.randint(1 + self.room_extra_size / 2, 3 + self.room_extra_size) * 2 + 1
             rectangularity = random.randint(0, 1 + int(room_size / 2)) * 2
@@ -76,8 +96,12 @@ class Dungeon:
             else:
                 room_height += rectangularity
 
-            room_x = random.randint(0, (self.width - room_width - 1) / 2) * 2 + 1
-            room_y = random.randint(0, (self.height - room_height - 1) / 2) * 2 + 1
+            try:
+                room_x = random.randint(0, (self.width - room_width - 1) / 2) * 2 + 1
+                room_y = random.randint(0, (self.height - room_height - 1) / 2) * 2 + 1
+            except Exception as e:
+                print(e)
+                continue
 
             room = Rectangle(
                     Point(room_x, room_y),
@@ -85,7 +109,7 @@ class Dungeon:
 
             overlapped = False
             for existed_room in self.__rooms:
-                if room.overlaps(existed_room):
+                if room.overlaps(existed_room, off_set=overlap_offset):
                     overlapped = True
                     break
             if overlapped:
@@ -95,6 +119,44 @@ class Dungeon:
             self.__start_region()
             for pos in room:
                 self.__carve(pos)
+
+    def __grow_maze_wide(self, pos_start):
+        cells = []
+        last_direction = None
+        maze_init = True
+
+        cells.append(pos_start)
+        while cells:
+            cell = cells[-1]
+            unmade_cells = []
+
+            for direction in DIRECTIONS:
+                if (self.__can_carve_wide(cell, direction)):
+                    unmade_cells.append(direction.get_tuple())
+
+            if unmade_cells:
+                if maze_init:
+                    self.__start_region()
+                    maze_init = False
+                if ((last_direction in unmade_cells) and
+                        (random.randint(0, 100) >= self.winding_percent)):
+                    direction = Point(last_direction[0], last_direction[1])
+                else:
+                    rand_dir = random.choice(unmade_cells)
+                    direction = Point(rand_dir[0], rand_dir[1])
+
+                for i in xrange(6):
+                    direction_offset = direction * i
+                    self.__carve(cell + direction_offset)
+                    self.__carve(cell - direction.inverse() + direction_offset)
+                    self.__carve(cell + direction.inverse() + direction_offset)
+
+                cells.append(cell + direction*4)
+
+                last_direction = direction
+            else:
+                cells.pop()
+                last_direction = None
 
     def __grow_maze(self, pos_start):
         cells = []
@@ -109,21 +171,21 @@ class Dungeon:
             unmade_cells = []
 
             for direction in DIRECTIONS:
-                if (self.__can_carve(cell, direction)):
+                if (self.__can_carve_wide(cell, direction)):
                     unmade_cells.append(direction.get_tuple())
 
             if unmade_cells:
                 if ((last_direction in unmade_cells) and
-                        (random.randint(0, 100) < self.winding_percent)):
+                        (random.randint(0, 100) >= self.winding_percent)):
                     direction = Point(last_direction[0], last_direction[1])
                 else:
                     rand_dir = random.choice(unmade_cells)
                     direction = Point(rand_dir[0], rand_dir[1])
 
                 self.__carve(cell + direction)
-                self.__carve(cell + direction*2)
+                self.__carve(cell + direction * 2)
 
-                cells.append(cell + direction*2)
+                cells.append(cell + direction * 2)
 
                 last_direction = direction
             else:
@@ -137,12 +199,12 @@ class Dungeon:
             ]
         connectors = []
         for pos in self.tiles.inflate(-1):
-            if self.tiles.get_tile(pos) != 1:
+            if self.tiles.get_val(pos) != 1:
                 continue
 
             regions = set()
             for direction in DIRECTIONS:
-                region = self.__regions[pos.x+direction.x][pos.y+direction.y]
+                region = self.__regions.get_val(pos + direction)
                 if region != -1:
                     regions.add(region)
 
@@ -157,9 +219,12 @@ class Dungeon:
         for i in xrange(self.__current_region + 1):
             merged.append(i)
             open_regions.add(i)
-        open_regions = list(open_regions)
+
+        open_regions = np.array(list(open_regions))
+        merged = np.array(merged)
 
         while len(open_regions) > 1:
+            print(len(open_regions), len(connectors))
             connector = random.choice(connectors)
 
             self.__add_junction(connector)
@@ -170,13 +235,12 @@ class Dungeon:
             dest = regions[0]
             sources = regions[1:]
 
-            for i in xrange(self.__current_region + 1):
-                if merged[i] in sources:
-                    merged[i] = dest
+            np.place(merged, np.in1d(merged, sources), dest)
 
-            for i, region in enumerate(open_regions):
-                if region in sources:
-                    open_regions.pop(i)
+            open_regions = np.delete(
+                            open_regions,
+                            np.where(np.in1d(open_regions, sources))
+                        )
 
             for i, pos in enumerate(connectors):
                 if (connector.distance_to(pos) < 2):
@@ -187,7 +251,7 @@ class Dungeon:
                             connector_regions[pos.x][pos.y]
                         ])
                     if (len(regions) <= 1):
-                        if (random.randint(0, 100) < self.extra_connector_chance):
+                        if (random.randint(0, 100) <= self.extra_connector_chance):
                             self.__add_junction(connector)
                         connectors.pop(i)
 
@@ -197,32 +261,45 @@ class Dungeon:
         while not done:
             done = True
             for pos in self.tiles.inflate(-1):
-                if self.tiles.get_tile(pos) == 1:
+                if self.tiles.get_val(pos) == 1:
                     continue
 
                 exits = 0
                 for direction in DIRECTIONS:
-                    if self.tiles.get_tile(pos + direction) != 1:
+                    if self.tiles.get_val(pos + direction) != 1:
                         exits += 1
 
                 if exits != 1:
                     continue
 
                 done = False
-                self.tiles.set_tile(pos, 1)
+                self.tiles.set_val(pos, 1)
+
+    def __can_carve_wide(self, pos, direction):
+        if (not self.tiles.contains(pos + direction * 6) or
+                not self.tiles.contains(pos + direction.inverse() + direction * 6) or
+                not self.tiles.contains(pos - direction.inverse() + direction * 6)):
+            return False
+
+        return (self.tiles.get_val(pos + direction * 5) == 1 and
+                self.tiles.get_val(pos + direction.inverse() + direction * 5) == 1 and
+                self.tiles.get_val(pos - direction.inverse() + direction * 5) == 1 and
+                self.tiles.get_val(pos + direction * 2) == 1 and
+                self.tiles.get_val(pos + direction.inverse() + direction * 2) == 1 and
+                self.tiles.get_val(pos - direction.inverse() + direction * 2) == 1)
 
     def __can_carve(self, pos, direction):
         if (not self.tiles.contains(pos + direction * 3)):
             return False
 
-        return self.tiles.get_tile(pos + direction * 2) == 1
+        return (self.tiles.get_val(pos + direction * 2) == 1)
 
-    def __carve(self, pos, tile_type=0):
-        self.tiles.set_tile(pos, tile_type)
-        self.__regions[pos.x][pos.y] = self.__current_region
+    def __carve(self, pos):
+        self.tiles.set_val(pos, 0)
+        self.__regions.set_val(pos, self.__current_region)
 
     def __add_junction(self, pos):
-        self.tiles.set_tile(pos, 0)
+        self.tiles.set_val(pos, 0)
 
     def __start_region(self):
         self.__current_region += 1
