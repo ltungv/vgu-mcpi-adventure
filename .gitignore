@@ -1,5 +1,9 @@
 *.pyc
 *.swp
+regions.csv
+
+game_scripts/
+mcpi_adventure/mcpi_modded/
 __pycache__/
 .venv/
 build/

@@ -1,36 +1,41 @@
 from mcpi.minecraft import Minecraft
-from .builder import remove_block
-from dungeon import Dungeon, DIRECTIONS
-from time import sleep
-import mcpi.block as block
+from mcpi import block
+from .dungeon import Dungeon
+
+
+MAZE_HEIGHT = 127
+MAZE_WIDTH = 127
 
 
 def main():
+    global mc
     mc = Minecraft.create()
-    # player = mc.player
-    for height in range(50):
-        mc.setBlock(0, height, 0, block.DIAMOND_BLOCK.id)
-        mc.setBlock(0, height, 255, block.DIAMOND_BLOCK.id)
-        mc.setBlock(255, height, 0, block.DIAMOND_BLOCK.id)
-        mc.setBlock(255, height, 255, block.DIAMOND_BLOCK.id)
 
-    my_dungeon = Dungeon(
-                    width=255, height=255,
-                    n_rooms_tries=300,
-                    extra_connector_chance=20,
-                    room_extra_size=10,
-                    winding_percent=40
-                )
-    my_dungeon.generate()
+    # mc.setting('world_immutable', True)
+    mc.setBlocks(-128, 0, -128, 128, 4, 128, block.AIR.id)
+    is_created = False
 
-    # for i in range(my_dungeon.height):
-    #     for j in range(my_dungeon.width):
-    #         mc.setBlock(i, 0, j, my_dungeon.tiles[i][j])
+    while (True):
+        if is_created:
+            break
+        try:
+            mc.setBlocks(-128, 0, -128, -128 + MAZE_WIDTH, 0, -128 + MAZE_HEIGHT, block.GLOWSTONE_BLOCK.id)
+            my_dungeon = Dungeon(
+                            width=MAZE_WIDTH, height=MAZE_HEIGHT,
+                            n_rooms_tries=300,
+                            extra_connector_chance=75,
+                            room_extra_size=15,
+                            winding_percent=0
+                        )
+            is_created = True
+        except:
+            print("Failed to create maze! Re-creating")
 
-    # while True:
-    #     sleep(1)
-    #     pos = player.getPos()
-    #     mc.postToChat("x=%d, y=%d, z=%d" % (pos.x, pos.y, pos.z))
+    for pos in my_dungeon.tiles:
+        mc.setBlock(pos.x - 128, 0, pos.y - 128, my_dungeon.tiles.get_val(pos))
+        mc.setBlock(pos.x - 128, 1, pos.y - 128, my_dungeon.tiles.get_val(pos))
+        # mc.setBlock(pos.x - 128, 2, pos.y - 128, my_dungeon.tiles.get_val(pos))
+        # mc.setBlock(pos.x - 128, 3, pos.y - 128, block.GLOWSTONE_BLOCK.id)
 
 
 if __name__ == '__main__':
