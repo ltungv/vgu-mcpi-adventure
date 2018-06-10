@@ -1,4 +1,4 @@
-import .game.main
+import .mcpi_adventure.main
 
 
 def main():

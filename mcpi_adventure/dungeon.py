@@ -3,7 +3,6 @@ This is the python implementation of the procedural dungeon generator written by
 Which can be found here:
     https://github.com/munificent/hauberk/blob/db360d9efa714efb6d937c31953ef849c7394a39/lib/src/content/dungeon.dart
 
-
 Steps taken:
     1. Randomly placed rooms of random sizes.
     Room is discarded when it overlaps an existing room.
@@ -16,13 +15,14 @@ Steps taken:
 '''
 
 
-from .shapes import Rectangle, Point, Tiles
+from shapes import Rectangle, Point, Tiles
 from mcpi.minecraft import Minecraft
 import time
 import numpy as np
 import random
+from constants import PUZZLE_ROOMS
 
-mc = Minecraft.create()
+# mc = Minecraft.create()
 
 DIRECTIONS = [
     Point(1, 0),
@@ -32,62 +32,64 @@ DIRECTIONS = [
 ]
 
 
-class Dungeon:
+class Dungeon(object):
     def __init__(
-            self, width, height, n_rooms_tries,
-            start_x=0, start_y=0,
-            extra_connector_chance=20,
+            self, width, height,
+            n_rooms_tries=100,
             room_extra_size=0,
-            winding_percent=0):
+            extra_connector_chance=20,
+            winding_percent=0,
+            wall_block_type=1):
         if (width % 2 == 0) and (height % 2 == 0):
             raise Exception("VALUE ERROR! Both width and height must be odd")
 
         self.width = width
         self.height = height
 
-        self.n_rooms_tries = n_rooms_tries
+        self.rooms = []
+        self.regions = Tiles(width, height, -1)
+        self.tiles = Tiles(width, height, wall_block_type)
+        self.wall_block_type = wall_block_type
 
+        self.current_region = -1
         self.extra_connector_chance = extra_connector_chance
-        self.room_extra_size = room_extra_size
         self.winding_percent = winding_percent
 
-        self.tiles = Tiles(width, height, 1)
+        self.__n_rooms_tries = n_rooms_tries
+        self.__room_extra_size = room_extra_size
 
-        self.__rooms = []
-        self.__regions = Tiles(width, height, -1)
-        self.__current_region = -1
+        self.generate()
 
-        self.__generate()
+    def generate(self):
+        print("[INFO] Adding rooms")
+        self.add_rooms(overlap_offset=5)
 
-    def __generate(self):
-        print("Adding rooms")
-        self.__add_rooms(overlap_offset=5)
-
-        print("Carving wide passage")
+        print("[INFO] Carving wide passage")
         for pos_y in xrange(2, self.height, 4):
             for pos_x in xrange(2, self.width, 4):
                 pos = Point(pos_x, pos_y)
-                if self.tiles.get_val(pos) != 1:
+                if self.tiles.get_val(pos) != self.wall_block_type:
                     continue
-                self.__grow_maze_wide(pos)
+                self.grow_maze_wide(pos)
 
-        print("Carving narrow passage")
+        print("[INFO] Carving narrow passage")
         for pos_y in xrange(1, self.height, 2):
             for pos_x in xrange(1, self.width, 2):
                 pos = Point(pos_x, pos_y)
-                if self.tiles.get_val(pos) != 1:
+                if self.tiles.get_val(pos) != self.wall_block_type:
                     continue
-                self.__grow_maze(pos)
+                self.grow_maze(pos)
 
-        with open("regions.csv", "wb") as f:
-            np.savetxt(f, self.__regions.get_tiles(), fmt="%-2i", delimiter=",")
 
-        self.__connect_regions()
-        # self.__remove_dead_ends()
+        self.connect_regions()
 
-    def __add_rooms(self, overlap_offset=0):
-        for i in xrange(self.n_rooms_tries):
-            room_size = random.randint(1 + self.room_extra_size / 2, 3 + self.room_extra_size) * 2 + 1
+    def save_tiles_state(self, path_name="layout/example.csv"):
+        with open(path_name, "wb") as f:
+            np.savetxt(f, self.tiles.get_tiles(), fmt="%-2i", delimiter=",")
+
+    def build_room(self, pos_x=None, pos_y=None, width=None, height=None, random_size=False):
+        if random_size:
+            room_size = random.randint(1 + self.__room_extra_size / 2, 3 + self.__room_extra_size) * 2 + 1
             rectangularity = random.randint(0, 1 + int(room_size / 2)) * 2
             room_width = room_size
             room_height = room_size
@@ -95,32 +97,44 @@ class Dungeon:
                 room_width += rectangularity
             else:
                 room_height += rectangularity
-
             try:
                 room_x = random.randint(0, (self.width - room_width - 1) / 2) * 2 + 1
                 room_y = random.randint(0, (self.height - room_height - 1) / 2) * 2 + 1
             except Exception as e:
-                print(e)
+                raise e
+        else:
+            room_width = width
+            room_height = height
+            room_x = pos_x
+            room_y = pos_y
+
+        return Rectangle(
+                    Point(room_x, room_y),
+                    Point(room_x + room_width, room_y + room_height)
+                )
+
+    def add_rooms(self, overlap_offset=0):
+        for i in xrange(self.__n_rooms_tries):
+            try:
+                room = self.build_room(random_size=True)
+            except Exception as e:
+                print("[ERROR] Error encounter while creating a room")
                 continue
 
-            room = Rectangle(
-                    Point(room_x, room_y),
-                    Point(room_x + room_width, room_y + room_height))
-
             overlapped = False
-            for existed_room in self.__rooms:
+            for existed_room in self.rooms:
                 if room.overlaps(existed_room, off_set=overlap_offset):
                     overlapped = True
                     break
             if overlapped:
                 continue
 
-            self.__rooms.append(room)
-            self.__start_region()
+            self.rooms.append(room)
+            self.start_region()
             for pos in room:
-                self.__carve(pos)
+                self.carve(pos)
 
-    def __grow_maze_wide(self, pos_start):
+    def grow_maze_wide(self, pos_start):
         cells = []
         last_direction = None
         maze_init = True
@@ -131,12 +145,13 @@ class Dungeon:
             unmade_cells = []
 
             for direction in DIRECTIONS:
-                if (self.__can_carve_wide(cell, direction)):
+                if (self.can_carve_wide(cell, direction)):
                     unmade_cells.append(direction.get_tuple())
 
+            # print('[DEBUG] VAR unmade_cells length: %d' % (len(unmade_cells)))
             if unmade_cells:
                 if maze_init:
-                    self.__start_region()
+                    self.start_region()
                     maze_init = False
                 if ((last_direction in unmade_cells) and
                         (random.randint(0, 100) >= self.winding_percent)):
@@ -145,25 +160,25 @@ class Dungeon:
                     rand_dir = random.choice(unmade_cells)
                     direction = Point(rand_dir[0], rand_dir[1])
 
-                for i in xrange(6):
-                    direction_offset = direction * i
-                    self.__carve(cell + direction_offset)
-                    self.__carve(cell - direction.inverse() + direction_offset)
-                    self.__carve(cell + direction.inverse() + direction_offset)
+                for scaling in range(6):
+                    scale_dir = direction * scaling
+                    self.carve(cell + scale_dir)
+                    self.carve(cell + direction.inverse() + scale_dir)
+                    self.carve(cell - direction.inverse() + scale_dir)
 
-                cells.append(cell + direction*4)
+                cells.append(cell + direction * 4)
 
                 last_direction = direction
             else:
                 cells.pop()
                 last_direction = None
 
-    def __grow_maze(self, pos_start):
+    def grow_maze(self, pos_start):
         cells = []
         last_direction = None
 
-        self.__start_region()
-        self.__carve(pos_start)
+        self.start_region()
+        self.carve(pos_start)
 
         cells.append(pos_start)
         while cells:
@@ -171,7 +186,7 @@ class Dungeon:
             unmade_cells = []
 
             for direction in DIRECTIONS:
-                if (self.__can_carve_wide(cell, direction)):
+                if (self.can_carve_wide(cell, direction)):
                     unmade_cells.append(direction.get_tuple())
 
             if unmade_cells:
@@ -182,8 +197,8 @@ class Dungeon:
                     rand_dir = random.choice(unmade_cells)
                     direction = Point(rand_dir[0], rand_dir[1])
 
-                self.__carve(cell + direction)
-                self.__carve(cell + direction * 2)
+                self.carve(cell + direction)
+                self.carve(cell + direction * 2)
 
                 cells.append(cell + direction * 2)
 
@@ -192,19 +207,19 @@ class Dungeon:
                 cells.pop()
                 last_direction = None
 
-    def __connect_regions(self):
+    def connect_regions(self):
         connector_regions = [
                 [None for i in xrange(self.width)]
                 for j in xrange(self.height)
             ]
         connectors = []
         for pos in self.tiles.inflate(-1):
-            if self.tiles.get_val(pos) != 1:
+            if self.tiles.get_val(pos) != self.wall_block_type:
                 continue
 
             regions = set()
             for direction in DIRECTIONS:
-                region = self.__regions.get_val(pos + direction)
+                region = self.regions.get_val(pos + direction)
                 if region != -1:
                     regions.add(region)
 
@@ -216,7 +231,7 @@ class Dungeon:
 
         merged = []
         open_regions = set()
-        for i in xrange(self.__current_region + 1):
+        for i in xrange(self.current_region + 1):
             merged.append(i)
             open_regions.add(i)
 
@@ -224,10 +239,9 @@ class Dungeon:
         merged = np.array(merged)
 
         while len(open_regions) > 1:
-            print(len(open_regions), len(connectors))
             connector = random.choice(connectors)
 
-            self.__add_junction(connector)
+            self.add_junction(connector)
 
             regions = list(set([
                     merged[region] for region in connector_regions[connector.x][connector.y]
@@ -252,54 +266,114 @@ class Dungeon:
                         ])
                     if (len(regions) <= 1):
                         if (random.randint(0, 100) <= self.extra_connector_chance):
-                            self.__add_junction(connector)
+                            self.add_junction(connector)
                         connectors.pop(i)
 
-    def __remove_dead_ends(self):
-        done = False
-
-        while not done:
-            done = True
-            for pos in self.tiles.inflate(-1):
-                if self.tiles.get_val(pos) == 1:
-                    continue
-
-                exits = 0
-                for direction in DIRECTIONS:
-                    if self.tiles.get_val(pos + direction) != 1:
-                        exits += 1
-
-                if exits != 1:
-                    continue
-
-                done = False
-                self.tiles.set_val(pos, 1)
-
-    def __can_carve_wide(self, pos, direction):
+    def can_carve_wide(self, pos, direction):
         if (not self.tiles.contains(pos + direction * 6) or
-                not self.tiles.contains(pos + direction.inverse() + direction * 6) or
-                not self.tiles.contains(pos - direction.inverse() + direction * 6)):
+                not self.tiles.contains(pos + direction.inverse() + direction * 5) or
+                not self.tiles.contains(pos - direction.inverse() + direction * 5)):
             return False
 
-        return (self.tiles.get_val(pos + direction * 5) == 1 and
-                self.tiles.get_val(pos + direction.inverse() + direction * 5) == 1 and
-                self.tiles.get_val(pos - direction.inverse() + direction * 5) == 1 and
-                self.tiles.get_val(pos + direction * 2) == 1 and
-                self.tiles.get_val(pos + direction.inverse() + direction * 2) == 1 and
-                self.tiles.get_val(pos - direction.inverse() + direction * 2) == 1)
+        for scaling in range(2, 6):
+            scale_dir = direction * scaling
+            if (self.tiles.get_val(pos + scale_dir) != self.wall_block_type or
+                    self.tiles.get_val(pos + direction.inverse() + scale_dir) != self.wall_block_type or
+                    self.tiles.get_val(pos - direction.inverse() + scale_dir) != self.wall_block_type):
+                return False
 
-    def __can_carve(self, pos, direction):
+        return True
+
+    def can_carve(self, pos, direction):
         if (not self.tiles.contains(pos + direction * 3)):
             return False
 
-        return (self.tiles.get_val(pos + direction * 2) == 1)
+        return (self.tiles.get_val(pos + direction * 2) == self.wall_block_type)
 
-    def __carve(self, pos):
+    def carve(self, pos):
         self.tiles.set_val(pos, 0)
-        self.__regions.set_val(pos, self.__current_region)
+        self.regions.set_val(pos, self.current_region)
 
-    def __add_junction(self, pos):
+    def add_junction(self, pos):
         self.tiles.set_val(pos, 0)
 
-    def __start_region(self):
-        self.__current_region += 1
+    def start_region(self):
+        self.current_region += 1
+
+
+class DungeonEasy(Dungeon):
+    def __init__(self, width, height, **kwargs):
+        super(DungeonEasy, self).__init__(width, height, **kwargs)
+
+    def add_rooms(self, *args, **kwargs):
+        print("[INFO] Creating room for easy dungeon")
+        # Quack a mole
+        self.rooms.append(PUZZLE_ROOMS['QuackAMole'])
+        # First passage
+        self.rooms.append(PUZZLE_ROOMS['FirstPassage'])
+        # Trap
+        room = self.build_room(45, 1, 15, 15)
+        self.rooms.append(room)
+        room = self.build_room(1, 35, 15, 15)
+        self.rooms.append(room)
+
+        for room in self.rooms:
+            self.start_region()
+            for pos in room:
+                self.carve(pos)
+
+
+class DungeonMedium(Dungeon):
+    def __init__(self, width, height, **kwargs):
+        super(DungeonMedium, self).__init__(width, height, **kwargs)
+
+    def add_rooms(self, *args, **kwargs):
+        print("[INFO] Creating room for medium dungeon")
+        # Second passage
+        self.rooms.append(PUZZLE_ROOMS['SecondPassage'])
+        # Red room
+        self.rooms.append(PUZZLE_ROOMS['RedRoom'])
+        # Cheat room
+        room = self.build_room(1, 73, 15, 15)
+        self.rooms.append(room)
+
+        room = self.build_room(75, 1, 15, 15)
+        self.rooms.append(room)
+        room = self.build_room(1, 57, 15, 15)
+        self.rooms.append(room)
+        room = self.build_room(55, 47, 35, 15)
+        self.rooms.append(room)
+
+        for room in self.rooms:
+            self.start_region()
+            for pos in room:
+                self.carve(pos)
+
+
+class DungeonHard(Dungeon):
+    def __init__(self, width, height, **kwargs):
+        super(DungeonHard, self).__init__(width, height, **kwargs)
+
+    def add_rooms(self, overlap_offset):
+        print("[INFO] Creating room for hard dungeon")
+        # Quiz
+        self.rooms.append(PUZZLE_ROOMS['Quiz'])
+        # Chess
+        self.rooms.append(PUZZLE_ROOMS['Chess'])
+        # Water
+        self.rooms.append(PUZZLE_ROOMS['Water'])
+        # Cheat
+        room = self.build_room(105, 53, 15, 15)
+        self.rooms.append(room)
+        # Trap
+        room = self.build_room(27, 1, 15, 15)
+        self.rooms.append(room)
+        room = self.build_room(105, 1, 15, 15)
+        self.rooms.append(room)
+        room = self.build_room(1, 105, 31, 15)
+        self.rooms.append(room)
+
+        for room in self.rooms:
+            self.start_region()
+            for pos in room:
+                self.carve(pos)
