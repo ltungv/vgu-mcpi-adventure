@@ -67,6 +67,8 @@ class Rectangle(object):
 
         self.top = min(y1, y2)
         self.bottom = max(y1, y2)
+        self.width = self.right - self.left
+        self.height = self.bottom - self.top
 
         assert self.top < self.bottom, 'Incorrect coordinate'
 

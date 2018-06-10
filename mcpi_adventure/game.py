@@ -1,50 +1,53 @@
-from mcpi.minecraft import Minecraft
-from mcpi.vec3 import Vec3
+from constants import PUZZLE_ROOMS
+from shapes import Point
 from mcpi import block
-from helpers import build_inversed_pyramid
-from helpers import build_dungeon
-from layout import create_dungeon_layouts
+import math
+import random
+import time
 
 
-PYRAMID_HEIGHT = 45
-STAGE_HEIGHTS = [0, 15, 30]
+def play_quackamole(mc, player):
+    current_room = PUZZLE_ROOMS['QuackAMole']
+    score = 0
+    is_done = True
+    stage_posx = int(current_room.left + (current_room.width - 10) / 2)
+    stage_posy = int(current_room.top + (current_room.height - 10) / 2)
 
+    while True:
+        block_hits = mc.events.pollBlockHits()
+        player_pos = player.getTilePos()
+        player_pos_2d = Point(player_pos.x, player_pos.z)
+        if not current_room.contains(player_pos_2d):
+            return 2  # Return 2 when player leave the room when the mission is not finished
+        if is_done:
+            tnt_posx = random.randint(stage_posx, stage_posx + 10)
+            tnt_posy = random.randint(stage_posy, stage_posy + 10)
+            distance_from_player = int(math.sqrt(
+                                        (player_pos_2d.x - tnt_posx) ** 2 +
+                                        (player_pos_2d.y - tnt_posy) ** 2
+                                    ))
+            mc.setBlock(tnt_posx, current_room.y + 1, tnt_posy)
+            tnt_set_time = time.time()
+            tnt_setoff_time = tnt_set_time + distance_from_player - 4
+            tnt_explode_time = tnt_set_time + distance_from_player
+            is_done = False
+            tnt_exploding = False
+        else:
+            current_time = time.time()
+            for hit in block_hits:
+                if (hit.pos.x == tnt_posx
+                        and hit.pos.y == current_room.y + 1
+                        and hit.pos.z == tnt_posy):
+                    score += 1
+                    is_done = True
+                    mc.setBlock(tnt_posx, current_room.y + 1, tnt_posy, block.AIR.id)
 
-def main():
-    mc = Minecraft.create()
+            if (current_time >= tnt_setoff_time
+                    and not tnt_exploding):
+                mc.setBlock(tnt_posx, current_room.y + 1, tnt_posy, 1)
+                tnt_exploding = True
+            if (current_time >= tnt_explode_time):
+                return 1
 
-    # World Initialization
-    print("[INFO] GENERATING WORLD! PLEASE WAIT")
-    # mc.setting('world_immutable', True)
-    mc.setBlocks(-256, 0, -256, 256, 101, 256, block.AIR.id)
-
-    # Build pyramid
-    print("[INFO] BUIDLING PYRAMID")
-    build_inversed_pyramid(
-                    mc, pos_start=Vec3(0, 0, 0),
-                    height=PYRAMID_HEIGHT, size_offset=30,
-                    block_type=block.GLOWSTONE_BLOCK.id
-                )
-
-    print("[INFO] ADDING FLOORS")
-    mc.setBlocks(-30 + 1, STAGE_HEIGHTS[0] - 1, -30 + 1, 30 - 1, STAGE_HEIGHTS[0] - 1, 30 - 1, block.GLOWSTONE_BLOCK.id)
-    mc.setBlocks(-45 + 1, STAGE_HEIGHTS[1] - 1, -45 + 1, 45 - 1, STAGE_HEIGHTS[1] - 1, 45 - 1, block.GLOWSTONE_BLOCK.id)
-    mc.setBlocks(-60 + 1, STAGE_HEIGHTS[2] - 1, -60 + 1, 60 - 1, STAGE_HEIGHTS[2] - 1, 60 - 1, block.GLOWSTONE_BLOCK.id)
-
-    # Generating dungeon state to a .csv file
-    create_dungeon_layouts(block_type=block.SANDSTONE.id)
-
-    print("[INFO] Building easy dungeon")
-    # build_dungeon(mc, Vec3(-30, STAGE_HEIGHTS[0], -30), path='layout/easy')
-
-    print("[INFO] Building medium dungeon")
-    # build_dungeon(mc, Vec3(-45, STAGE_HEIGHTS[1], -45), path='layout/medium')
-
-    # print("[INFO] Building hard dungeon")
-    # build_dungeon(mc, Vec3(-60, STAGE_HEIGHTS[2], -60), path='layout/hard')
-
-    print("[INFO] FINISHED GENERATING WORLD")
-
-
-if __name__ == '__main__':
-    main()
+        if score == 10:
+            return 0

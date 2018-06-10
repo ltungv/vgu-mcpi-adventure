@@ -20,6 +20,7 @@ from mcpi.minecraft import Minecraft
 import time
 import numpy as np
 import random
+from constants import PUZZLE_ROOMS
 
 # mc = Minecraft.create()
 
@@ -86,7 +87,7 @@ class Dungeon(object):
         with open(path_name, "wb") as f:
             np.savetxt(f, self.tiles.get_tiles(), fmt="%-2i", delimiter=",")
 
-    def build_room(self, pos_x=None, pos_y=None, width=None, height=None, random_size=True):
+    def build_room(self, pos_x=None, pos_y=None, width=None, height=None, random_size=False):
         if random_size:
             room_size = random.randint(1 + self.__room_extra_size / 2, 3 + self.__room_extra_size) * 2 + 1
             rectangularity = random.randint(0, 1 + int(room_size / 2)) * 2
@@ -115,7 +116,7 @@ class Dungeon(object):
     def add_rooms(self, overlap_offset=0):
         for i in xrange(self.__n_rooms_tries):
             try:
-                room = self.build_room()
+                room = self.build_room(random_size=True)
             except Exception as e:
                 print("[ERROR] Error encounter while creating a room")
                 continue
@@ -306,13 +307,14 @@ class DungeonEasy(Dungeon):
 
     def add_rooms(self, *args, **kwargs):
         print("[INFO] Creating room for easy dungeon")
-        room = self.build_room(1, 1, 21, 21, random_size=False)
+        # Quack a mole
+        self.rooms.append(PUZZLE_ROOMS['QuackAMole'])
+        # First passage
+        self.rooms.append(PUZZLE_ROOMS['FirstPassage'])
+        # Trap
+        room = self.build_room(45, 1, 15, 15)
         self.rooms.append(room)
-        room = self.build_room(41, 1, 19, 19, random_size=False)
-        self.rooms.append(room)
-        room = self.build_room(1, 31, 17, 17, random_size=False)
-        self.rooms.append(room)
-        room = self.build_room(27, 41, 33, 19, random_size=False)
+        room = self.build_room(1, 35, 15, 15)
         self.rooms.append(room)
 
         for room in self.rooms:
@@ -327,17 +329,19 @@ class DungeonMedium(Dungeon):
 
     def add_rooms(self, *args, **kwargs):
         print("[INFO] Creating room for medium dungeon")
-        room = self.build_room(1, 1, 34, 8, random_size=False)
+        # Second passage
+        self.rooms.append(PUZZLE_ROOMS['SecondPassage'])
+        # Red room
+        self.rooms.append(PUZZLE_ROOMS['RedRoom'])
+        # Cheat room
+        room = self.build_room(1, 73, 15, 15)
         self.rooms.append(room)
-        room = self.build_room(78, 1, 12, 12, random_size=False)
+
+        room = self.build_room(75, 1, 15, 15)
         self.rooms.append(room)
-        room = self.build_room(1, 53, 12, 12, random_size=False)
+        room = self.build_room(1, 57, 15, 15)
         self.rooms.append(room)
-        room = self.build_room(1, 66, 12, 12, random_size=False)
-        self.rooms.append(room)
-        room = self.build_room(63, 54, 27, 8, random_size=False)
-        self.rooms.append(room)
-        room = self.build_room(63, 63, 27, 27)
+        room = self.build_room(55, 47, 35, 15)
         self.rooms.append(room)
 
         for room in self.rooms:
@@ -351,4 +355,25 @@ class DungeonHard(Dungeon):
         super(DungeonHard, self).__init__(width, height, **kwargs)
 
     def add_rooms(self, overlap_offset):
-        pass
+        print("[INFO] Creating room for hard dungeon")
+        # Quiz
+        self.rooms.append(PUZZLE_ROOMS['Quiz'])
+        # Chess
+        self.rooms.append(PUZZLE_ROOMS['Chess'])
+        # Water
+        self.rooms.append(PUZZLE_ROOMS['Water'])
+        # Cheat
+        room = self.build_room(105, 53, 15, 15)
+        self.rooms.append(room)
+        # Trap
+        room = self.build_room(27, 1, 15, 15)
+        self.rooms.append(room)
+        room = self.build_room(105, 1, 15, 15)
+        self.rooms.append(room)
+        room = self.build_room(1, 105, 31, 15)
+        self.rooms.append(room)
+
+        for room in self.rooms:
+            self.start_region()
+            for pos in room:
+                self.carve(pos)
