@@ -12,22 +12,22 @@ Steps taken:
     untill all the regions are connected. There's a chance that there
     are 2 "door" that connect 2 regions.'
     4. Remove dead ends by filling in any tile that is closed on 3 sides.
+
+Step 2 has been modified to create 3-tile wide passage for the dungeon
 '''
 
-
 from shapes import Rectangle, Point, Tiles
-from mcpi.minecraft import Minecraft
-import time
+from mcpi import block
 import numpy as np
 import random
-from constants import PUZZLE_ROOMS
+from constants import PUZZLE_ROOMS, TRAP_ROOMS, CHEAT_ROOMS
 
-# mc = Minecraft.create()
 
+# Cardinal directions in xy-plane
 DIRECTIONS = [
     Point(1, 0),
-    Point(-1, 0),
     Point(0, 1),
+    Point(-1, 0),
     Point(0, -1)
 ]
 
@@ -40,9 +40,10 @@ class Dungeon(object):
             extra_connector_chance=20,
             winding_percent=0,
             wall_block_type=1):
+        # This generator only works using odd number width and height
         if (width % 2 == 0) and (height % 2 == 0):
-            raise Exception("VALUE ERROR! Both width and height must be odd")
-
+            raise Exception("VALUE ERROR! BOTH WIDTH AND HEIGHT MUST BE ODD")
+        # Variables saving dungeon's data
         self.width = width
         self.height = height
 
@@ -50,21 +51,25 @@ class Dungeon(object):
         self.regions = Tiles(width, height, -1)
         self.tiles = Tiles(width, height, wall_block_type)
         self.wall_block_type = wall_block_type
-
         self.current_region = -1
+
+        # Dungeon's parameters
         self.extra_connector_chance = extra_connector_chance
         self.winding_percent = winding_percent
 
         self.__n_rooms_tries = n_rooms_tries
         self.__room_extra_size = room_extra_size
 
+        # Start generate dungeon
         self.generate()
 
     def generate(self):
-        print("[INFO] Adding rooms")
+        # Adding room data to the .csv
+        print("[INFO] ADDING ROOMS")
         self.add_rooms(overlap_offset=5)
 
-        print("[INFO] Carving wide passage")
+        # Adding maze's passages data to .csv
+        print("[INFO] CARVING WIDE PASSAGE")
         for pos_y in xrange(2, self.height, 4):
             for pos_x in xrange(2, self.width, 4):
                 pos = Point(pos_x, pos_y)
@@ -72,7 +77,8 @@ class Dungeon(object):
                     continue
                 self.grow_maze_wide(pos)
 
-        print("[INFO] Carving narrow passage")
+        # Adding additonal maze's passages to .csv
+        print("[INFO] CARVING NARROW PASSAGE")
         for pos_y in xrange(1, self.height, 2):
             for pos_x in xrange(1, self.width, 2):
                 pos = Point(pos_x, pos_y)
@@ -80,7 +86,7 @@ class Dungeon(object):
                     continue
                 self.grow_maze(pos)
 
-
+        # Add doors to connect each room the maze
         self.connect_regions()
 
     def save_tiles_state(self, path_name="layout/example.csv"):
@@ -118,7 +124,7 @@ class Dungeon(object):
             try:
                 room = self.build_room(random_size=True)
             except Exception as e:
-                print("[ERROR] Error encounter while creating a room")
+                print("[ERROR] ERROR ENCOUNTER WHILE CREATING A ROOM")
                 continue
 
             overlapped = False
@@ -148,7 +154,7 @@ class Dungeon(object):
                 if (self.can_carve_wide(cell, direction)):
                     unmade_cells.append(direction.get_tuple())
 
-            # print('[DEBUG] VAR unmade_cells length: %d' % (len(unmade_cells)))
+            # print('[DEBUG] VAR UNMADE_CELLS LENGTH: %d' % (len(unmade_cell)))
             if unmade_cells:
                 if maze_init:
                     self.start_region()
@@ -160,7 +166,7 @@ class Dungeon(object):
                     rand_dir = random.choice(unmade_cells)
                     direction = Point(rand_dir[0], rand_dir[1])
 
-                for scaling in range(6):
+                for scaling in range(2, 6):
                     scale_dir = direction * scaling
                     self.carve(cell + scale_dir)
                     self.carve(cell + direction.inverse() + scale_dir)
@@ -274,7 +280,6 @@ class Dungeon(object):
                 not self.tiles.contains(pos + direction.inverse() + direction * 5) or
                 not self.tiles.contains(pos - direction.inverse() + direction * 5)):
             return False
-
         for scaling in range(2, 6):
             scale_dir = direction * scaling
             if (self.tiles.get_val(pos + scale_dir) != self.wall_block_type or
@@ -294,28 +299,32 @@ class Dungeon(object):
         self.tiles.set_val(pos, 0)
         self.regions.set_val(pos, self.current_region)
 
-    def add_junction(self, pos):
-        self.tiles.set_val(pos, 0)
+    def add_junction(self, pos, block_type=block.AIR.id):
+        for room in self.rooms:
+            if room.inflate(1).contains(pos):
+                block_type = block.DOOR_WOOD.id
+        self.tiles.set_val(pos, block_type)
 
     def start_region(self):
         self.current_region += 1
 
 
 class DungeonEasy(Dungeon):
+    '''
+        Dungeon for hard level with preset rooms
+    '''
     def __init__(self, width, height, **kwargs):
         super(DungeonEasy, self).__init__(width, height, **kwargs)
 
     def add_rooms(self, *args, **kwargs):
-        print("[INFO] Creating room for easy dungeon")
-        # Quack a mole
-        self.rooms.append(PUZZLE_ROOMS['QuackAMole'])
-        # First passage
+        print("[INFO] CREATING ROOM FOR EASY DUNGEON")
+        # Adding Quack a mole
+        self.rooms.append(PUZZLE_ROOMS['Quack'])
+        # Adding First passage
         self.rooms.append(PUZZLE_ROOMS['FirstPassage'])
-        # Trap
-        room = self.build_room(45, 1, 15, 15)
-        self.rooms.append(room)
-        room = self.build_room(1, 35, 15, 15)
-        self.rooms.append(room)
+        # Adding Trap
+        self.rooms.append(TRAP_ROOMS['Easy1'])
+        self.rooms.append(TRAP_ROOMS['Easy2'])
 
         for room in self.rooms:
             self.start_region()
@@ -324,25 +333,24 @@ class DungeonEasy(Dungeon):
 
 
 class DungeonMedium(Dungeon):
+    '''
+        Dungeon for medium level with preset rooms
+    '''
     def __init__(self, width, height, **kwargs):
         super(DungeonMedium, self).__init__(width, height, **kwargs)
 
     def add_rooms(self, *args, **kwargs):
-        print("[INFO] Creating room for medium dungeon")
-        # Second passage
+        print("[INFO] CREATING ROOM FOR MEDIUM DUNGEON")
+        # Adding Second passage
         self.rooms.append(PUZZLE_ROOMS['SecondPassage'])
-        # Red room
-        self.rooms.append(PUZZLE_ROOMS['RedRoom'])
-        # Cheat room
-        room = self.build_room(1, 73, 15, 15)
-        self.rooms.append(room)
-
-        room = self.build_room(75, 1, 15, 15)
-        self.rooms.append(room)
-        room = self.build_room(1, 57, 15, 15)
-        self.rooms.append(room)
-        room = self.build_room(55, 47, 35, 15)
-        self.rooms.append(room)
+        # Adding Red room
+        self.rooms.append(PUZZLE_ROOMS['Red'])
+        # Adding Cheat room
+        self.rooms.append(CHEAT_ROOMS['Medium'])
+        # Adding Trap room
+        self.rooms.append(TRAP_ROOMS['Medium1'])
+        self.rooms.append(TRAP_ROOMS['Medium2'])
+        self.rooms.append(TRAP_ROOMS['Medium3'])
 
         for room in self.rooms:
             self.start_region()
@@ -351,27 +359,26 @@ class DungeonMedium(Dungeon):
 
 
 class DungeonHard(Dungeon):
+    '''
+        Dungeon for hard level with preset rooms
+    '''
     def __init__(self, width, height, **kwargs):
         super(DungeonHard, self).__init__(width, height, **kwargs)
 
     def add_rooms(self, overlap_offset):
-        print("[INFO] Creating room for hard dungeon")
-        # Quiz
+        print("[INFO] CREATING ROOM FOR HARD DUNGEON")
+        # Adding Quiz
         self.rooms.append(PUZZLE_ROOMS['Quiz'])
-        # Chess
+        # Adding Chess
         self.rooms.append(PUZZLE_ROOMS['Chess'])
-        # Water
+        # Adding Water
         self.rooms.append(PUZZLE_ROOMS['Water'])
-        # Cheat
-        room = self.build_room(105, 53, 15, 15)
-        self.rooms.append(room)
-        # Trap
-        room = self.build_room(27, 1, 15, 15)
-        self.rooms.append(room)
-        room = self.build_room(105, 1, 15, 15)
-        self.rooms.append(room)
-        room = self.build_room(1, 105, 31, 15)
-        self.rooms.append(room)
+        # Adding Cheat
+        self.rooms.append(CHEAT_ROOMS['Hard'])
+        # Adding Trap
+        self.rooms.append(TRAP_ROOMS['Hard1'])
+        self.rooms.append(TRAP_ROOMS['Hard2'])
+        self.rooms.append(TRAP_ROOMS['Hard3'])
 
         for room in self.rooms:
             self.start_region()

@@ -7,7 +7,7 @@ with open('README.md', 'r') as f:
 
 setup(
     name='mcpi_adventure',
-    version='1.0',
+    version='1.5',
     description="A minecraft's mini game created using python on MinecraftPi",
     long_description=long_description,
     author='Tung Le Vo',
