@@ -9,12 +9,17 @@ from constants import (
         )
 
 
+'''
+    Generate layout for each levels and save to
+    .csv files contained in /layout/*/*
+'''
 def create_dungeon_layouts(n_layouts=5, block_type=1):
     print("[INFO] Generating dungeon layout")
     for i in range(n_layouts):
         while True:
             try:
                 print("[INFO] Creating easy dungeon")
+                # Generate the layout of each level and save to .csv
                 dungeon_easy = DungeonEasy(
                                    width=EASY_MAZE_WIDTH, height=EASY_MAZE_HEIGHT,
                                    extra_connector_chance=0,

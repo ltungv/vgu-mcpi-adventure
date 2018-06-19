@@ -3,6 +3,11 @@ import math
 
 
 class Point:
+    '''
+        Point coordinate on a 2D plane
+    '''
+    # TODO: Change name a variable "y" to "z" to be
+    #       consistent with the Vec3() class
     def __init__(self, x, y):
         self.x = x
         self.y = y
@@ -45,11 +50,14 @@ class Point:
 
 
 class Rectangle(object):
+    '''
+        Rectangle position and properties on a 2D plane
+    '''
     def __init__(self, point1, point2):
         self.set_bounds(point1, point2)
 
     def __repr__(self):
-        return "Rectangle(%d, %d, %d, %d)" % (self.left, self.right, self.top, self.bottom)
+        return "Rectangle(%d, %d, %d, %d)" % (self.left, self.top, self.right, self.bottom)
 
     def __iter__(self):
         for pos_y in xrange(self.top, self.bottom):
@@ -84,16 +92,19 @@ class Rectangle(object):
                     Point(self.right + delta, self.bottom + delta)
                 )
 
-    def contains(self, point):
-        if ((point.x < self.right) and
-                (point.x >= self.left) and
-                (point.y < self.bottom) and
-                (point.y >= self.top)):
+    def contains(self, point, offset_x=0, offset_y=0):
+        if ((point.x + offset_x < self.right) and
+                (point.x + offset_x >= self.left) and
+                (point.y + offset_y < self.bottom) and
+                (point.y + offset_y >= self.top)):
             return True
         return False
 
 
 class Tiles(Rectangle):
+    '''
+        Help saving the plane coordinate's data in numpy arrays
+    '''
     def __init__(self, width, height, init_value=0):
         super(Tiles, self).__init__(Point(0, 0), Point(width, height))
         self.__tiles = np.full((width, height), init_value, dtype=int)

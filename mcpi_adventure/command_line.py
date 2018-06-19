@@ -1,5 +1,5 @@
-import .mcpi_adventure.main
+import mcpi_adventure.mcpi_adventure.main as GameMain
 
 
 def main():
-    game.main()
+    GameMain()

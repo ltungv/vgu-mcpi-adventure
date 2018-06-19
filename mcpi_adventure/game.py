@@ -1,53 +1,307 @@
-from constants import PUZZLE_ROOMS
-from shapes import Point
+from constants import PUZZLE_ROOMS, STAGE_POS
+from constants import EASY_MAZE_WIDTH, EASY_MAZE_HEIGHT
+from constants import MEDIUM_MAZE_WIDTH, MEDIUM_MAZE_HEIGHT
+from constants import HARD_MAZE_WIDTH, HARD_MAZE_HEIGHT
+from constants import TRAP_ROOMS, CHEAT_ROOMS
+from shapes import Point, Rectangle
 from mcpi import block
+from minecraftstuff import MinecraftDrawing, Points
 import math
 import random
 import time
 
 
+def enter_dungeon(mc, lvl=0):
+    # Rooms in each dungeon
+    if lvl == 0:
+        rooms = [PUZZLE_ROOMS['Quack'], PUZZLE_ROOMS['FirstPassage'],
+                 TRAP_ROOMS['Easy1'], TRAP_ROOMS['Easy2']]
+        height = EASY_MAZE_HEIGHT
+        width = EASY_MAZE_WIDTH
+    elif lvl == 1:
+        rooms = [PUZZLE_ROOMS['SecondPassage'], PUZZLE_ROOMS['Red'],
+                 CHEAT_ROOMS['Medium'], TRAP_ROOMS['Medium1'],
+                 TRAP_ROOMS['Medium2'], TRAP_ROOMS['Medium3']]
+        height = MEDIUM_MAZE_HEIGHT
+        width = MEDIUM_MAZE_WIDTH
+    elif lvl == 2:
+        rooms = [PUZZLE_ROOMS['Quiz'], PUZZLE_ROOMS['Chess'], PUZZLE_ROOMS['Water'],
+                 CHEAT_ROOMS['Hard'], TRAP_ROOMS['Hard1'],
+                 TRAP_ROOMS['Hard2'], TRAP_ROOMS['Hard3']]
+        height = HARD_MAZE_HEIGHT
+        width = HARD_MAZE_WIDTH
+
+    # Choosing a random position in the dungeon to teleport the player to
+    while True:
+        is_valid = True
+        pos_x = random.randint(STAGE_POS[lvl].x + 1, STAGE_POS[lvl].x + height)
+        pos_z = random.randint(STAGE_POS[lvl].x + 1, STAGE_POS[lvl].x + width)
+        pos_y = STAGE_POS[lvl].y
+        if (mc.getBlock(pos_x, pos_y, pos_z) == 0):
+            for room in rooms:
+                # Checking if the space is in a room or of a wall
+                if room.contains(Point(pos_x, pos_z), -STAGE_POS[lvl].x, -STAGE_POS[lvl].y):
+                    is_valid = False
+                    break
+        else:
+            is_valid = False
+
+        if is_valid:
+            mc.player.setTilePos(pos_x, pos_y, pos_z)
+            break
+
+
 def play_quackamole(mc, player):
-    current_room = PUZZLE_ROOMS['QuackAMole']
-    score = 0
+    current_room = PUZZLE_ROOMS['Quack']
     is_done = True
-    stage_posx = int(current_room.left + (current_room.width - 10) / 2)
-    stage_posy = int(current_room.top + (current_room.height - 10) / 2)
+    score = 0
+    # The platform on which the player plays
+    stage_posx = int(current_room.left + (current_room.width - 10) / 2) + STAGE_POS[0].x
+    stage_posy = int(current_room.top + (current_room.height - 10) / 2) + STAGE_POS[0].z
+    stage = Rectangle(Point(stage_posx, stage_posy), Point(stage_posx+10, stage_posy+10))
+    start = False
 
     while True:
+        # Player positon and hit events data
         block_hits = mc.events.pollBlockHits()
         player_pos = player.getTilePos()
         player_pos_2d = Point(player_pos.x, player_pos.z)
-        if not current_room.contains(player_pos_2d):
-            return 2  # Return 2 when player leave the room when the mission is not finished
-        if is_done:
-            tnt_posx = random.randint(stage_posx, stage_posx + 10)
-            tnt_posy = random.randint(stage_posy, stage_posy + 10)
-            distance_from_player = int(math.sqrt(
-                                        (player_pos_2d.x - tnt_posx) ** 2 +
-                                        (player_pos_2d.y - tnt_posy) ** 2
-                                    ))
-            mc.setBlock(tnt_posx, current_room.y + 1, tnt_posy)
-            tnt_set_time = time.time()
-            tnt_setoff_time = tnt_set_time + distance_from_player - 4
-            tnt_explode_time = tnt_set_time + distance_from_player
-            is_done = False
-            tnt_exploding = False
+        # Return 2 when player leave the room when the mission is not finished
+        if not current_room.contains(player_pos_2d, -STAGE_POS[0].x, -STAGE_POS[0].z):
+            return 2
+        if not start:
+            # Start puzzle when the play is on the platform
+            if stage.contains(player_pos_2d):
+                start = True
+                mc.postToChat("GAME STARTS")
         else:
-            current_time = time.time()
-            for hit in block_hits:
-                if (hit.pos.x == tnt_posx
-                        and hit.pos.y == current_room.y + 1
-                        and hit.pos.z == tnt_posy):
-                    score += 1
-                    is_done = True
-                    mc.setBlock(tnt_posx, current_room.y + 1, tnt_posy, block.AIR.id)
+            # Checking if the player has hitted the tnt
+            if is_done:
+                # Radom tnt's position
+                tnt_posx = random.randint(stage_posx, stage_posx + 10)
+                tnt_posy = STAGE_POS[0].y + 1
+                tnt_posz = random.randint(stage_posy, stage_posy + 10)
+                # Calculate the distance of the tnt to the player
+                # to set the time of explostion of the tnt
+                distance_from_player = int(math.sqrt(
+                                            (player_pos_2d.x - tnt_posx) ** 2 +
+                                            (player_pos_2d.y - tnt_posy) ** 2
+                                        ))
+                mc.setBlock(tnt_posx, tnt_posy, tnt_posz, block.TNT.id)
+                tnt_set_time = time.time()
+                tnt_explode_time = tnt_set_time + distance_from_player / 8
+                is_done = False
+            else:
+                current_time = time.time()
+                # Check hitted block position
+                for hit in block_hits:
+                    if (hit.pos.x == tnt_posx
+                            and hit.pos.y == tnt_posy
+                            and hit.pos.z == tnt_posz):
+                        score += 1
+                        mc.postToChat("%d / 10 TO WIN" % (score))
+                        is_done = True
+                        mc.setBlock(tnt_posx, tnt_posy, tnt_posz, block.AIR.id)
 
-            if (current_time >= tnt_setoff_time
-                    and not tnt_exploding):
-                mc.setBlock(tnt_posx, current_room.y + 1, tnt_posy, 1)
-                tnt_exploding = True
-            if (current_time >= tnt_explode_time):
-                return 1
-
+                if (current_time >= tnt_explode_time):
+                    # Immitate the behaviour of an exploded tnt
+                    mc.setBlocks(tnt_posx-2, tnt_posy-1, tnt_posz-2,
+                                 tnt_posx+2, tnt_posy+2, tnt_posz+2,
+                                 block.AIR.id)
+                    return 1
+        # Return 0 if win
         if score == 10:
             return 0
+
+
+def play_water(mc, player):
+    '''
+        The water room puzzle mechanics
+    '''
+    def random_sphere_point(x0, y0, z0, radius):
+        '''
+            Returns a random point of a sphere, evenly distributed over the sphere.
+            The sphere is centered at (x0,y0,z0) with the passed in radius.
+            The returned point is returned as a three element array [x,y,z]. 
+        '''
+        u = random.random()
+        v = random.random()
+        theta = 2 * math.pi * u
+        phi = math.acos(2 * v - 1)
+        x = x0 + (radius * math.sin(phi) * math.cos(theta))
+        y = y0 + (radius * math.sin(phi) * math.sin(theta))
+        z = z0 + (radius * math.cos(phi))
+        return x, y, z
+
+    # Helpers object for drawing object and shapes
+    mcdraw = MinecraftDrawing(mc)
+    # Puzzle's parameters
+    score = 0
+    current_room = PUZZLE_ROOMS['Water']
+    water_height = 10
+    start = False
+    is_done = True
+    is_diving = False
+
+    while True:
+        # Player's position
+        player_pos = player.getTilePos()
+        player_pos_2d = Point(player_pos.x, player_pos.z)
+        # Return 2 when player leave the room when the mission is not finished
+        if not current_room.contains(player_pos_2d, -STAGE_POS[2].x, -STAGE_POS[2].z):
+            return 2
+        if not start:
+            # Start the puzzle when the player swim to the surface
+            if player_pos.y >= STAGE_POS[2].y+water_height-1:
+                start = True
+                mc.postToChat("[RULES] YOU HAVE TO SWIM THROUGH A LOOP OF GLOW STONES")
+                time.sleep(3)
+                mc.postToChat("[RULES] YOU GAIN 1 POINT WHEN SUCCESSFULLY SWIM THROUGH IT")
+                time.sleep(3)
+                mc.postToChat("[RULES] IF YOU'RE UNDERWATER FOR MORE THAN 10S, YOU'LL DIE")
+                time.sleep(3)
+                mc.postToChat("[RULES] EACH TIME YOU COME OUT OF THE WATER, THE WATER'S LEvel raise")
+                time.sleep(3)
+                mc.postToChat("GAME WILL START IN 5 SECONDS")
+                time.sleep(5)
+                mc.postToChat("GAME START")
+        else:
+            # Check if the player is under water
+            if player_pos.y < STAGE_POS[2].y + water_height:
+                # When the player is underwater, start the 10-second timer
+                if not is_diving:
+                    expired_time = time.time() + 10
+                    is_diving = True
+                # When player score 1 point, place new loop
+                if is_done:
+                    # Generate random position for the loop
+                    while True:
+                        x_target, y_target, z_target = random_sphere_point(player_pos.x, player_pos.y, player_pos.z, 5)
+                        x_target = int(math.floor(x_target))
+                        y_target = int(math.floor(y_target))
+                        z_target = int(math.floor(z_target))
+                        if (current_room.inflate(-2).contains(Point(x_target, z_target), -STAGE_POS[2].x, -STAGE_POS[2].z) and
+                                (y_target > STAGE_POS[2].y + 1) and (y_target < STAGE_POS[2].y + water_height - 1)):
+                            break
+                    # Vertices of the rectangular loop
+                    face_vertices = Points()
+                    face_vertices.add(x_target-2, y_target, z_target-2)
+                    face_vertices.add(x_target+2, y_target, z_target-2)
+                    face_vertices.add(x_target+2, y_target, z_target+2)
+                    face_vertices.add(x_target-2, y_target, z_target+2)
+                    # Draw to loop
+                    mcdraw.drawFace(face_vertices, False, block.GLOWSTONE_BLOCK.id)
+                    is_done = False
+                else:
+                    # If the player passes the loop
+                    if ((player_pos.x >= x_target-2) and (player_pos.x <= x_target+2) and
+                            (player_pos.z >= z_target-2) and (player_pos.z <= z_target+2) and
+                            (player_pos.y == y_target-2)):
+                        mcdraw.drawFace(face_vertices, False, block.AIR.id)
+                        is_done = True
+                        score += 1
+                        mc.postToChat("%d / 12 TO WIN" % (score))
+                # Check if the player has been under water for more than 10 seconds
+                # if so, the player fails the puzzle
+                if time.time() >= expired_time:
+                    mcdraw.drawFace(face_vertices, False, block.AIR.id)
+                    return 1
+            elif is_diving:
+                # Raise the water level when the player raise to the surface
+                is_diving = False
+                water_height += 1
+                mc.setBlocks(current_room.left + STAGE_POS[2].x,
+                             STAGE_POS[2].y + water_height,
+                             current_room.top + STAGE_POS[2].z,
+                             current_room.right + STAGE_POS[2].x - 1,
+                             STAGE_POS[2].y + water_height,
+                             current_room.bottom + STAGE_POS[2].z - 1,
+                             block.WATER.id)
+        if score == 12:
+            # Drain all the water when the player win
+            # for dramatic movie effects
+            for i in range(14, -1, -1):
+                mc.setBlocks(current_room.left + STAGE_POS[2].x,
+                             STAGE_POS[2].y + i,
+                             current_room.top + STAGE_POS[2].z,
+                             current_room.right + STAGE_POS[2].x - 1,
+                             STAGE_POS[2].y + i,
+                             current_room.bottom + STAGE_POS[2].z - 1,
+                             block.AIR.id)
+                time.sleep(0.5)
+            return 0
+
+
+def play_first_passage(mc, player, all_pillars):
+    '''
+        "First Passage" puzzle mechanics
+    '''
+    def count_glowstones():
+        '''
+            Counting the number of glowstones placed
+            on top of the pillars
+        '''
+        count = 0
+        for pillar in all_pillars:
+            block_at_pillar = mc.getBlock(pillar.x, pillar.y+6, pillar.z)
+            if block_at_pillar == block.GLOWSTONE_BLOCK.id:
+                count += 1
+        return count
+
+    # Game's parameters
+    current_room = PUZZLE_ROOMS['FirstPassage']
+    door_pos = player.getTilePos()
+    start = False
+    is_raise = False
+    lava_height = 3
+    prev_glowstones = 0
+
+    while True:
+        # Player's positions
+        player_pos = player.getTilePos()
+        player_pos_2d = Point(player_pos.x, player_pos.z)
+        # Return 2 when player leave the room when the mission is not finished
+        if not current_room.contains(player_pos_2d, -STAGE_POS[0].x, -STAGE_POS[0].z):
+            return 2
+        if not start:
+            # Teleport the player to a random pillar and start the puzzle
+            start = True
+            mc.postToChat("[RULES] YOU WILL HAVE TO PLACE GLOWSTONES ON TOP OF ALL THE PILLARS")
+            time.sleep(3)
+            mc.postToChat("[RULES] THE LAVA WILL RAISE EVERY 20 SECONDS")
+            time.sleep(3)
+            mc.postToChat("[RULES] IF YOU TOUCH THE LAVA, YOU'LL LOSE")
+            time.sleep(3)
+            mc.postToChat("YOU'LL BE TELEPORTED TO THE ROOM IN 5 SECONDS")
+            time.sleep(5)
+            init_pos = random.choice(all_pillars)
+            player.setTilePos(init_pos.x, init_pos.y + 6, init_pos.z)
+        else:
+            # Check if the lava level has been raise
+            # Add a 20-second timer if it has just been raised
+            if not is_raise:
+                time_to_raise = time.time() + 20
+                is_raise = True
+            # Raise the level every 20 seconds
+            if time.time() >= time_to_raise:
+                lava_height += 1
+                is_raise = False
+                mc.setBlocks(current_room.inflate(-4).left + STAGE_POS[0].x,
+                             STAGE_POS[0].y + lava_height,
+                             current_room.inflate(-4).top + STAGE_POS[0].z,
+                             current_room.inflate(-4).right + STAGE_POS[0].x,
+                             STAGE_POS[0].y + lava_height,
+                             current_room.inflate(-4).bottom + STAGE_POS[0].z,
+                             block.LAVA.id)
+            # Return 1 when the player fall into the lava
+            if player_pos.y <= STAGE_POS[0].y+lava_height:
+                return 1
+            # Current number of placed glowstones
+            current_glowstones = count_glowstones()
+            if current_glowstones > prev_glowstones:
+                prev_glowstones = current_glowstones
+                mc.postToChat("%d / 7 REDSTONES" % current_glowstones)
+            # Return 0 if 7 glowstones have been placed
+            if current_glowstones == 7:
+                player.setTilePos(door_pos.x, door_pos.y, door_pos.z)
+                return 0
