@@ -9,11 +9,11 @@ from constants import (
         )
 
 
-'''
-    Generate layout for each levels and save to
-    .csv files contained in /layout/*/*
-'''
 def create_dungeon_layouts(n_layouts=5, block_type=1):
+    '''
+        Generate layout for each levels and save to
+        .csv files contained in /layout/*/*
+    '''
     print("[INFO] Generating dungeon layout")
     for i in range(n_layouts):
         while True:

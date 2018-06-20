@@ -1,54 +1,11 @@
 from constants import PUZZLE_ROOMS, STAGE_POS
-from constants import EASY_MAZE_WIDTH, EASY_MAZE_HEIGHT
-from constants import MEDIUM_MAZE_WIDTH, MEDIUM_MAZE_HEIGHT
-from constants import HARD_MAZE_WIDTH, HARD_MAZE_HEIGHT
-from constants import TRAP_ROOMS, CHEAT_ROOMS
 from shapes import Point, Rectangle
 from mcpi import block
 from minecraftstuff import MinecraftDrawing, Points
+from helpers import tts_chat
 import math
 import random
 import time
-
-
-def enter_dungeon(mc, lvl=0):
-    # Rooms in each dungeon
-    if lvl == 0:
-        rooms = [PUZZLE_ROOMS['Quack'], PUZZLE_ROOMS['FirstPassage'],
-                 TRAP_ROOMS['Easy1'], TRAP_ROOMS['Easy2']]
-        height = EASY_MAZE_HEIGHT
-        width = EASY_MAZE_WIDTH
-    elif lvl == 1:
-        rooms = [PUZZLE_ROOMS['SecondPassage'], PUZZLE_ROOMS['Red'],
-                 CHEAT_ROOMS['Medium'], TRAP_ROOMS['Medium1'],
-                 TRAP_ROOMS['Medium2'], TRAP_ROOMS['Medium3']]
-        height = MEDIUM_MAZE_HEIGHT
-        width = MEDIUM_MAZE_WIDTH
-    elif lvl == 2:
-        rooms = [PUZZLE_ROOMS['Quiz'], PUZZLE_ROOMS['Chess'], PUZZLE_ROOMS['Water'],
-                 CHEAT_ROOMS['Hard'], TRAP_ROOMS['Hard1'],
-                 TRAP_ROOMS['Hard2'], TRAP_ROOMS['Hard3']]
-        height = HARD_MAZE_HEIGHT
-        width = HARD_MAZE_WIDTH
-
-    # Choosing a random position in the dungeon to teleport the player to
-    while True:
-        is_valid = True
-        pos_x = random.randint(STAGE_POS[lvl].x + 1, STAGE_POS[lvl].x + height)
-        pos_z = random.randint(STAGE_POS[lvl].x + 1, STAGE_POS[lvl].x + width)
-        pos_y = STAGE_POS[lvl].y
-        if (mc.getBlock(pos_x, pos_y, pos_z) == 0):
-            for room in rooms:
-                # Checking if the space is in a room or of a wall
-                if room.contains(Point(pos_x, pos_z), -STAGE_POS[lvl].x, -STAGE_POS[lvl].y):
-                    is_valid = False
-                    break
-        else:
-            is_valid = False
-
-        if is_valid:
-            mc.player.setTilePos(pos_x, pos_y, pos_z)
-            break
 
 
 def play_quackamole(mc, player):
@@ -73,7 +30,7 @@ def play_quackamole(mc, player):
             # Start puzzle when the play is on the platform
             if stage.contains(player_pos_2d):
                 start = True
-                mc.postToChat("GAME STARTS")
+                tts_chat(mc, "GAME STARTS")
         else:
             # Checking if the player has hitted the tnt
             if is_done:
@@ -99,7 +56,7 @@ def play_quackamole(mc, player):
                             and hit.pos.y == tnt_posy
                             and hit.pos.z == tnt_posz):
                         score += 1
-                        mc.postToChat("%d / 10 TO WIN" % (score))
+                        tts_chat(mc, "%d / 10 TO WIN" % (score))
                         is_done = True
                         mc.setBlock(tnt_posx, tnt_posy, tnt_posz, block.AIR.id)
 
@@ -122,7 +79,7 @@ def play_water(mc, player):
         '''
             Returns a random point of a sphere, evenly distributed over the sphere.
             The sphere is centered at (x0,y0,z0) with the passed in radius.
-            The returned point is returned as a three element array [x,y,z]. 
+            The returned point is returned as a three element array [x,y,z].
         '''
         u = random.random()
         v = random.random()
@@ -154,17 +111,17 @@ def play_water(mc, player):
             # Start the puzzle when the player swim to the surface
             if player_pos.y >= STAGE_POS[2].y+water_height-1:
                 start = True
-                mc.postToChat("[RULES] YOU HAVE TO SWIM THROUGH A LOOP OF GLOW STONES")
+                tts_chat(mc, "YOU HAVE TO SWIM THROUGH A LOOP OF GLOW STONES", prefix="[RULES]")
                 time.sleep(3)
-                mc.postToChat("[RULES] YOU GAIN 1 POINT WHEN SUCCESSFULLY SWIM THROUGH IT")
+                tts_chat(mc, "YOU GAIN 1 POINT WHEN SUCCESSFULLY SWIM THROUGH IT", prefix="[RULES]")
                 time.sleep(3)
-                mc.postToChat("[RULES] IF YOU'RE UNDERWATER FOR MORE THAN 10S, YOU'LL DIE")
+                tts_chat(mc, "IF YOU'RE UNDERWATER FOR MORE THAN 10S, YOU'LL DIE", prefix="[RULES]")
                 time.sleep(3)
-                mc.postToChat("[RULES] EACH TIME YOU COME OUT OF THE WATER, THE WATER'S LEvel raise")
+                tts_chat(mc, "EACH TIME YOU COME OUT OF THE WATER, THE WATER'S LEvel raise", prefix="[RULES]")
                 time.sleep(3)
-                mc.postToChat("GAME WILL START IN 5 SECONDS")
+                tts_chat(mc, "GAME WILL START IN 5 SECONDS")
                 time.sleep(5)
-                mc.postToChat("GAME START")
+                tts_chat(mc, "GAME START")
         else:
             # Check if the player is under water
             if player_pos.y < STAGE_POS[2].y + water_height:
@@ -200,7 +157,7 @@ def play_water(mc, player):
                         mcdraw.drawFace(face_vertices, False, block.AIR.id)
                         is_done = True
                         score += 1
-                        mc.postToChat("%d / 12 TO WIN" % (score))
+                        tts_chat(mc, "%d / 12 TO WIN" % (score))
                 # Check if the player has been under water for more than 10 seconds
                 # if so, the player fails the puzzle
                 if time.time() >= expired_time:
@@ -266,13 +223,13 @@ def play_first_passage(mc, player, all_pillars):
         if not start:
             # Teleport the player to a random pillar and start the puzzle
             start = True
-            mc.postToChat("[RULES] YOU WILL HAVE TO PLACE GLOWSTONES ON TOP OF ALL THE PILLARS")
+            tts_chat(mc, "YOU WILL HAVE TO PLACE GLOWSTONES ON TOP OF ALL THE PILLARS", prefix="[RULES]")
             time.sleep(3)
-            mc.postToChat("[RULES] THE LAVA WILL RAISE EVERY 20 SECONDS")
+            tts_chat(mc, "THE LAVA WILL RAISE EVERY 20 SECONDS", prefix="[RULES]")
             time.sleep(3)
-            mc.postToChat("[RULES] IF YOU TOUCH THE LAVA, YOU'LL LOSE")
+            tts_chat(mc, "IF YOU TOUCH THE LAVA, YOU'LL LOSE", prefix="[RULES]")
             time.sleep(3)
-            mc.postToChat("YOU'LL BE TELEPORTED TO THE ROOM IN 5 SECONDS")
+            tts_chat(mc, "YOU'LL BE TELEPORTED TO THE ROOM IN 5 SECONDS")
             time.sleep(5)
             init_pos = random.choice(all_pillars)
             player.setTilePos(init_pos.x, init_pos.y + 6, init_pos.z)
@@ -300,8 +257,27 @@ def play_first_passage(mc, player, all_pillars):
             current_glowstones = count_glowstones()
             if current_glowstones > prev_glowstones:
                 prev_glowstones = current_glowstones
-                mc.postToChat("%d / 7 REDSTONES" % current_glowstones)
+                tts_chat(mc, "%d / 7 REDSTONES" % current_glowstones)
             # Return 0 if 7 glowstones have been placed
             if current_glowstones == 7:
                 player.setTilePos(door_pos.x, door_pos.y, door_pos.z)
                 return 0
+
+
+def trap_box(mc, current_room, current_stage):
+    tts_chat(mc, "YOU WILL BE CRUSHED")
+    tts_chat(mc, "THERE'S NO RUNNING! ACCEPT YOUR FATE!")
+    for i in range(1, 14):
+        filled_room = current_room.inflate(-i)
+        mc.setBlocks(filled_room.left+current_stage.x, current_stage.y, filled_room.top+current_stage.z,
+                     filled_room.right+current_stage.x, current_stage.y+13, filled_room.top+current_stage.z,
+                     block.SANDSTONE.id)
+        mc.setBlocks(filled_room.left+current_stage.x, current_stage.y, filled_room.bottom+current_stage.z,
+                     filled_room.right+current_stage.x, current_stage.y+13, filled_room.bottom+current_stage.z,
+                     block.SANDSTONE.id)
+        mc.setBlocks(filled_room.left+current_stage.x, current_stage.y, filled_room.top+current_stage.z,
+                     filled_room.left+current_stage.x, current_stage.y+13, filled_room.bottom+current_stage.z,
+                     block.SANDSTONE.id)
+        mc.setBlocks(filled_room.right+current_stage.x, current_stage.y, filled_room.top+current_stage.z,
+                     filled_room.right+current_stage.x, current_stage.y+13, filled_room.bottom+current_stage.z,
+                     block.SANDSTONE.id)
