@@ -58,15 +58,13 @@ def build_dungeon(mc, stage_pos, difficulty):
             if (tile == block.DOOR_WOOD.id or tile == block.DOOR_IRON.id):
                 mc.setBlock(tile_pos.x, tile_pos.y - 1, tile_pos.z, block.SANDSTONE.id)
                 build_door(mc, tile_pos, stage_pos, tile, difficulty)
-                if (PUZZLE_ROOMS['Water'].inflate(1).contains(Point(posx, posz)) and
-                        difficulty == 'hard'):
-                    mc.setBlocks(tile_pos.x, tile_pos.y + 2, tile_pos.z,
-                                 tile_pos.x, tile_pos.y + 14, tile_pos.z,
-                                 block.SANDSTONE.id)
+                mc.setBlocks(tile_pos.x, tile_pos.y + 2, tile_pos.z,
+                             tile_pos.x, tile_pos.y + 13, tile_pos.z,
+                             block.SANDSTONE.id)
             elif (PUZZLE_ROOMS['Water'].inflate(1).contains(Point(posx, posz)) and
                   difficulty == 'hard'):
                 mc.setBlocks(tile_pos.x, tile_pos.y, tile_pos.z,
-                             tile_pos.x, tile_pos.y + 14, tile_pos.z,
+                             tile_pos.x, tile_pos.y + 13, tile_pos.z,
                              tile)
             else:
                 mc.setBlocks(tile_pos.x, tile_pos.y, tile_pos.z,
@@ -88,13 +86,9 @@ def build_inversed_pyramid(mc, pos_start, height, size_offset=0, block_type=bloc
         bound_bottom = pos_start.z + distance_from_center
 
         mc.setBlocks(bound_left, pos_y, bound_top, bound_right, pos_y, bound_top, block_type)
-        time.sleep(0.25)
         mc.setBlocks(bound_left, pos_y, bound_bottom, bound_right, pos_y, bound_bottom, block_type)
-        time.sleep(0.25)
         mc.setBlocks(bound_left, pos_y, bound_top, bound_left, pos_y, bound_bottom, block_type)
-        time.sleep(0.25)
         mc.setBlocks(bound_right, pos_y, bound_top, bound_right, pos_y, bound_bottom, block_type)
-        time.sleep(0.25)
 
 
 def build_quack_a_mole(mc):
@@ -190,14 +184,200 @@ def build_first_passage(mc):
                                  (z_target - pillar.z) ** 2)
             if distance < 3:
                 is_valid = False
-                break
         if is_valid:
             all_pillars.append(Vec3(x_target, y_target, z_target))
             mc.setBlocks(x_target, y_target, z_target,
                          x_target, y_target+5, z_target,
                          block.SANDSTONE.id)
-            break
     return all_pillars
+
+
+def build_red(mc):
+    '''
+        Build the "red" room in Minecraft Pi
+    '''
+    width = 26
+    height = 13
+    depth = 34
+
+    current_room = PUZZLE_ROOMS['Red']
+    x = current_room.left + STAGE_POS[1].x-3
+    z = current_room.top + STAGE_POS[1].z
+    y = STAGE_POS[1].y
+
+    # room
+    mc.setBlocks(x+3, y, z, x+3+depth, y+height, z+width, block.BRICK_BLOCK.id)
+    mc.setBlocks(x+4, y, z+1, x+2+depth, y+height-1, z+width-1, block.AIR.id)
+
+    # floor
+    mc.setBlocks(x+2, y-1, z-1, x+4+depth, y-1, z+1+width, block.COBBLESTONE.id)
+
+    # Torch
+    mc.setBlocks(x+4, y+2, z+1, x+2+depth, y+2, z+1, 50, 1)
+    mc.setBlocks(x+4, y+2, z+width-1, x+2+depth, y+2, z+width-1, 50, 2)
+
+    # Bulding the R
+    # first character
+    mc.setBlocks(x+3+depth-1, y, z+width-3, x+3+depth-1, y+5, z+width-3, block.GLOWSTONE_BLOCK.id)
+    # else
+    mc.setBlocks(x+3+depth-1, y+5, z+width-3, x+3+depth-1, y+3, z+width-8, block.GLOWSTONE_BLOCK.id)
+    mc.setBlock(x+3+depth-1, y+2, z+width-6,  block.GLOWSTONE_BLOCK.id)
+    mc.setBlock(x+3+depth-1, y+1, z+width-7,  block.GLOWSTONE_BLOCK.id)
+    mc.setBlock(x+3+depth-1, y, z+width-8,  block.GLOWSTONE_BLOCK.id)
+    # Bulding the E
+    mc.setBlocks(x+3+depth-1, y, z+width-10, x+3+depth-1, y+5, z+width-10, block.GLOWSTONE_BLOCK.id)
+    mc.setBlocks(x+3+depth-1, y+5, z+width-10, x+3+depth-1, y+5, z+width-15, block.GLOWSTONE_BLOCK.id)
+    mc.setBlocks(x+3+depth-1, y+3, z+width-10, x+3+depth-1, y+3, z+width-15, block.GLOWSTONE_BLOCK.id)
+    mc.setBlocks(x+3+depth-1, y, z+width-10, x+3+depth-1, y, z+width-15, block.GLOWSTONE_BLOCK.id)
+    # Bulding the D
+    mc.setBlocks(x+3+depth-1, y, z+width-17, x+3+depth-1, y+5, z+width-22, block.GLOWSTONE_BLOCK.id)
+    mc.setBlocks(x+3+depth-1, y+5, z+width-20, x+3+depth-1, y+5, z+width-22, 0)
+    mc.setBlocks(x+3+depth-1, y, z+width-20, x+3+depth-1, y, z+width-22, 0)
+    mc.setBlock(x+3+depth-1, y+4, z+width-22, 0)
+    mc.setBlock(x+3+depth-1, y, z+width-22, 0)
+    mc.setBlocks(x+3+depth-1, y+2, z+width-18, x+3+depth-1, y+3, z+width-20, 0)
+
+
+def build_chess(mc):
+    '''
+        Build the Chess room in Minecraft Pi
+    '''
+    current_room = PUZZLE_ROOMS['Chess']
+
+    x = current_room.left + STAGE_POS[2].x-3
+    z = current_room.top + STAGE_POS[2].z
+    y = STAGE_POS[2].y
+
+    width = 49
+    height = 13
+    depth = 49
+
+    # room
+    mc.setBlocks(x+3, y, z, x+3+depth, y+height, z+width, block.BRICK_BLOCK.id)
+    mc.setBlocks(x+4, y, z+1, x+2+depth, y+height-1, z+width-1, block.AIR.id)
+
+    # Chess table Building
+    # First ROW of Chess
+    mc.setBlocks(x+4, y, z+1,  x+4+5, y, z+6,   block.WOOL.id, 0)
+    mc.setBlocks(x+4, y, z+7,  x+4+5, y, z+12,  block.WOOL.id, 15)
+    mc.setBlocks(x+4, y, z+13, x+4+5, y, z++18, block.WOOL.id, 0)
+    mc.setBlocks(x+4, y, z+19, x+4+5, y, z++24, block.WOOL.id, 15)
+    mc.setBlocks(x+4, y, z+25, x+4+5, y, z++30, block.WOOL.id, 0)
+    mc.setBlocks(x+4, y, z+31, x+4+5, y, z++36, block.WOOL.id, 15)
+    mc.setBlocks(x+4, y, z+37, x+4+5, y, z++42, block.WOOL.id, 0)
+    mc.setBlocks(x+4, y, z+43, x+4+5, y, z++48, block.WOOL.id, 15)
+
+    # Second ROW of Chess
+    mc.setBlocks(x+4+6, y, z+1,  x+4+11, y, z+6,  block.WOOL.id, 15)
+    mc.setBlocks(x+4+6, y, z+7,  x+4+11, y, z+12, block.WOOL.id, 0)
+    mc.setBlocks(x+4+6, y, z+13, x+4+11, y, z+18, block.WOOL.id, 15)
+    mc.setBlocks(x+4+6, y, z+19, x+4+11, y, z+24, block.WOOL.id, 0)
+    mc.setBlocks(x+4+6, y, z+25, x+4+11, y, z+30, block.WOOL.id, 15)
+    mc.setBlocks(x+4+6, y, z+31, x+4+11, y, z+36, block.WOOL.id, 0)
+    mc.setBlocks(x+4+6, y, z+37, x+4+11, y, z+42, block.WOOL.id, 15)
+    mc.setBlocks(x+4+6, y, z+43, x+4+11, y, z+48, block.WOOL.id, 0)
+
+    # Third ROW of Chess
+    mc.setBlocks(x+4+12, y, z+1,  x+4+17, y, z+6,  block.WOOL.id, 0)
+    mc.setBlocks(x+4+12, y, z+7,  x+4+17, y, z+12, block.WOOL.id, 15)
+    mc.setBlocks(x+4+12, y, z+13, x+4+17, y, z+18, block.WOOL.id, 0)
+    mc.setBlocks(x+4+12, y, z+19, x+4+17, y, z+24, block.WOOL.id, 15)
+    mc.setBlocks(x+4+12, y, z+25, x+4+17, y, z+30, block.WOOL.id, 0)
+    mc.setBlocks(x+4+12, y, z+31, x+4+17, y, z+36, block.WOOL.id, 15)
+    mc.setBlocks(x+4+12, y, z+37, x+4+17, y, z+42, block.WOOL.id, 0)
+    mc.setBlocks(x+4+12, y, z+43, x+4+17, y, z+48, block.WOOL.id, 15)
+
+    # Forth ROW of Chess
+    mc.setBlocks(x+4+18, y, z+1,  x+4+23, y, z+6,  block.WOOL.id, 15)
+    mc.setBlocks(x+4+18, y, z+7,  x+4+23, y, z+12,  block.WOOL.id, 0)
+    mc.setBlocks(x+4+18, y, z+13, x+4+23, y, z+18, block.WOOL.id, 15)
+    mc.setBlocks(x+4+18, y, z+19, x+4+23, y, z+24, block.WOOL.id, 0)
+    mc.setBlocks(x+4+18, y, z+25, x+4+23, y, z+30, block.WOOL.id, 15)
+    mc.setBlocks(x+4+18, y, z+31, x+4+23, y, z+36, block.WOOL.id, 0)
+    mc.setBlocks(x+4+18, y, z+37, x+4+23, y, z+42, block.WOOL.id, 15)
+    mc.setBlocks(x+4+18, y, z+43, x+4+23, y, z+48, block.WOOL.id, 0)
+
+    # Fifth ROW of Chess
+    mc.setBlocks(x+4+24, y, z+1,  x+4+29, y, z+6,  block.WOOL.id, 0)
+    mc.setBlocks(x+4+24, y, z+7,  x+4+29, y, z+12, block.WOOL.id, 15)
+    mc.setBlocks(x+4+24, y, z+13, x+4+29, y, z+18, block.WOOL.id, 0)
+    mc.setBlocks(x+4+24, y, z+19, x+4+29, y, z+24, block.WOOL.id, 15)
+    mc.setBlocks(x+4+24, y, z+25, x+4+29, y, z+30, block.WOOL.id, 0)
+    mc.setBlocks(x+4+24, y, z+31, x+4+29, y, z+36, block.WOOL.id, 15)
+    mc.setBlocks(x+4+24, y, z+37, x+4+29, y, z+42, block.WOOL.id, 0)
+    mc.setBlocks(x+4+24, y, z+43, x+4+29, y, z+48, block.WOOL.id, 15)
+
+    # Sixth ROW of Chess
+    mc.setBlocks(x+4+30, y, z+1,  x+4+35, y, z+6,  block.WOOL.id, 15)
+    mc.setBlocks(x+4+30, y, z+7,  x+4+35, y, z+12, block.WOOL.id, 0)
+    mc.setBlocks(x+4+30, y, z+13, x+4+35, y, z+18, block.WOOL.id, 15)
+    mc.setBlocks(x+4+30, y, z+19, x+4+35, y, z+24, block.WOOL.id, 0)
+    mc.setBlocks(x+4+30, y, z+25, x+4+35, y, z+30, block.WOOL.id, 15)
+    mc.setBlocks(x+4+30, y, z+31, x+4+35, y, z+36, block.WOOL.id, 0)
+    mc.setBlocks(x+4+30, y, z+37, x+4+35, y, z+42, block.WOOL.id, 15)
+    mc.setBlocks(x+4+30, y, z+43, x+4+35, y, z+48, block.WOOL.id, 0)
+
+    # Seventh ROW of Chess
+    mc.setBlocks(x+4+36, y, z+1,  x+4+41, y, z+6,  block.WOOL.id, 0)
+    mc.setBlocks(x+4+36, y, z+7,  x+4+41, y, z+12, block.WOOL.id, 15)
+    mc.setBlocks(x+4+36, y, z+13, x+4+41, y, z+18, block.WOOL.id, 0)
+    mc.setBlocks(x+4+36, y, z+19, x+4+41, y, z+24, block.WOOL.id, 15)
+    mc.setBlocks(x+4+36, y, z+25, x+4+41, y, z+30, block.WOOL.id, 0)
+    mc.setBlocks(x+4+36, y, z+31, x+4+41, y, z+36, block.WOOL.id, 15)
+    mc.setBlocks(x+4+36, y, z+37, x+4+41, y, z+42, block.WOOL.id, 0)
+    mc.setBlocks(x+4+36, y, z+43, x+4+41, y, z+48, block.WOOL.id, 15)
+
+    # Eighth ROW of Chess
+    mc.setBlocks(x+4+42, y, z+1,  x+4+47, y, z+6,  block.WOOL.id, 15)
+    mc.setBlocks(x+4+42, y, z+7,  x+4+47, y, z+12, block.WOOL.id, 0)
+    mc.setBlocks(x+4+42, y, z+13, x+4+47, y, z+18, block.WOOL.id, 15)
+    mc.setBlocks(x+4+42, y, z+19, x+4+47, y, z+24, block.WOOL.id, 0)
+    mc.setBlocks(x+4+42, y, z+25, x+4+47, y, z+30, block.WOOL.id, 15)
+    mc.setBlocks(x+4+42, y, z+31, x+4+47, y, z+36, block.WOOL.id, 0)
+    mc.setBlocks(x+4+42, y, z+37, x+4+47, y, z+42, block.WOOL.id, 15)
+    mc.setBlocks(x+4+42, y, z+43, x+4+47, y, z+48, block.WOOL.id, 0)
+
+    # Make the DOOR
+    mc.setBlocks(x+3, y, z+4, x+3, y+2, z+4, 0)
+
+    # Torch for lighting
+    for i in range(1, depth, +3):
+        for k in range(4, height, +3):
+            mc.setBlock(x+3+i, y+k, z+1, 50, 1)
+            mc.setBlock(x+3+i, y+k, z+width-1, 50, 2)
+
+
+def build_second_passage(mc):
+    current_room = PUZZLE_ROOMS['SecondPassage']
+
+    x = current_room.left + STAGE_POS[1].x-3
+    z = current_room.top + STAGE_POS[1].z
+    y = STAGE_POS[1].y
+    width = 14
+    height = 13
+    depth = 44
+
+    # room
+    mc.setBlocks(x+3, y, z, x+3+depth, y+height, z+width, block.BRICK_BLOCK.id)
+    mc.setBlocks(x+4, y, z+1, x+2+depth, y+height-1, z+width-1, block.AIR.id)
+
+    # floor
+    mc.setBlocks(x+2, y-1, z-1, x+4+depth, y-1, z+1+width, block.COBBLESTONE.id)
+
+    # door
+    mc.setBlock(x+3, y, z+1, 0)
+    mc.setBlock(x+3, y+1, z+1, 0)
+
+    # doorpassage
+    mc.setBlocks(x+3, y+height-2, z+4, x+3, y+height-3, z+4, 0)
+    mc.setBlocks(x+3, y+height-4, z, x+3+10, y+height-4, z+width, block.COBBLESTONE.id)
+
+    # door to out
+    mc.setBlocks(x+3+depth-3, y+height-4, z+width, x+3+depth, y+height-3, z+width, 0)
+
+    # Lava
+    mc.setBlocks(x+4, y, z+1, x+3+depth-1, y+height-6, z+width-1, 11)
+    mc.setBlocks(x+3, y, z+1, x+3, y+1, z+1, block.BRICK_BLOCK.id)
 
 
 def remove_block(mc, pos):
