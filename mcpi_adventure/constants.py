@@ -6,7 +6,7 @@ from shapes import Rectangle, Point
 
 
 PYRAMID_HEIGHT = 45
-PYRAMID_POS = Vec3(0, 0, 0)
+PYRAMID_POS = Vec3(0, -59, 0)
 
 # Upperleft corner position of each level
 STAGE_POS = [
@@ -90,3 +90,6 @@ CHEAT_ROOMS = {
                 Point(105, 53), Point(120, 68)
             ),
         }
+
+# LEDs' GPIO pins
+LEDs = [4, 17, 18, 27, 22, 23, 24, 13, 19, 26]

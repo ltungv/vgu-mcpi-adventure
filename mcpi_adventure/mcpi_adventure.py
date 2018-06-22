@@ -2,13 +2,15 @@ from game import play_quackamole
 from game import play_water
 from game import play_first_passage
 from game import trap_box
+from game import play_second_passage
+from game import play_red
 from builders import build_inversed_pyramid
 from shapes import Point
 from helpers import enter_dungeon
 from helpers import tts_chat
 from mcpi.minecraft import Minecraft
 from mcpi import block
-from helpers import game_reset
+from helpers import game_reset, reset_dungeon
 from layout import create_dungeon_layouts
 from constants import (
         PYRAMID_HEIGHT,
@@ -22,9 +24,17 @@ from constants import (
         HARD_MAZE_WIDTH,
         PUZZLE_ROOMS,
         TRAP_ROOMS,
-        CHEAT_ROOMS
+        CHEAT_ROOMS,
+        LEDs
     )
+import RPi.GPIO as GPIO
 import time
+
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+for led in LEDs:
+    GPIO.setup(led, GPIO.OUT)
 
 
 def game_init():
@@ -40,10 +50,8 @@ def game_init():
                  block.AIR.id)
     # Settings and clear to flat
     # mc.setting('world_immutable', True)
-    # mc.setBlocks(-128, -64, -128, 128, 64, 128, block.AIR.id)
-    # mc.setBlocks(-128, -64, -128, 128, -60, 128, block.SANDSTONE.id)
-    mc.setBlocks(-128, 0, -128, 128, 64, 128, block.AIR.id)
-    mc.setBlocks(-128, 0, -128, 128, -3, 128, block.LAVA.id)
+    mc.setBlocks(-128, -64, -128, 128, 64, 128, block.AIR.id)
+    mc.setBlocks(-128, -64, -128, 128, -60, 128, block.SANDSTONE.id)
 
     # Build pyramid
     print("[INFO] BUIDLING PYRAMID")
@@ -81,12 +89,12 @@ def game_init():
             STAGE_POS[2].z + HARD_MAZE_HEIGHT - 3,
             block.GLOWSTONE_BLOCK.id
         )
-    mc.setBlocks(-75, PYRAMID_POS.y + PYRAMID_HEIGHT, -75,
-                 75, PYRAMID_POS.y + PYRAMID_HEIGHT, 75,
+    mc.setBlocks(-75, PYRAMID_POS.y + PYRAMID_HEIGHT - 1, -75,
+                 75, PYRAMID_POS.y + PYRAMID_HEIGHT - 1, 75,
                  block.GLOWSTONE_BLOCK.id)
 
     # Generating dungeon state to a .csv file
-    create_dungeon_layouts(block_type=block.SANDSTONE.id)
+    # create_dungeon_layouts(block_type=block.SANDSTONE.id)
 
     print("[INFO] FINISHED GENERATING WORLD")
 
@@ -119,107 +127,182 @@ def game_play():
         # Checking the player postion and start the room's puzzle
         # based on his / her postion
         # The game is totally reset when the player fails a puzzle
-        if player_pos.y >= STAGE_POS[0].y and player_pos.y <= STAGE_POS[0].y + 14:
+        if player_pos.y >= STAGE_POS[0].y and player_pos.y <= STAGE_POS[0].y + 13:
             if (PUZZLE_ROOMS['Quack'].contains(player_pos_2d, -STAGE_POS[0].x, -STAGE_POS[0].z)
                     and not entered_room['Quack']):
                 entered_room['Quack'] = True
-                tts_chat(mc, "ENTER THE RED STAGE!")
-                tts_chat(mc, "DESTROY THE TNTS BEFORE THEY DETONATE", prefix="[RULES]")
-                tts_chat(mc, "DO NOT LEAVE THE ROOM BEFORE FINISHING THE GAME", prefix="[RULES]")
+                tts_chat(mc, "Enter the red stage!")
+                tts_chat(mc, "Destroy the tnts before they detonate", prefix="[rules]")
+                tts_chat(mc, "Do not leave the room before finishing the game", prefix="[rules]")
                 exit_code = play_quackamole(mc, player)
                 if exit_code == 0:
-                    tts_chat(mc, 'PUZZLE COMPLETED')
+                    tts_chat(mc, 'Puzzle completed')
                     completed['Quack'] = True
                 else:
                     if exit_code == 1:
-                        tts_chat(mc, 'PUZZLE FAILED')
+                        tts_chat(mc, 'Puzzle failed')
                     elif exit_code == 2:
-                        tts_chat(mc, 'YOU LEFT THE ROOM BEFORE FINISHING THE PUZZLE')
-                    entered_room, completed = game_reset(mc)
+                        tts_chat(mc, 'You left the room before finishing the puzzle')
+                    tts_chat(mc, "The game will reset in 5 seconds")
+                    time.sleep(5)
+                    entered_room, completed, all_pillars = game_reset(mc)
 
             if (PUZZLE_ROOMS['FirstPassage'].contains(player_pos_2d, -STAGE_POS[0].x, -STAGE_POS[0].z)
                     and not entered_room['FirstPassage']):
                 entered_room['FirstPassage'] = True
-                tts_chat(mc, "PLACE GLOWSTONES ONTOP OF THE 7 PILLARS", prefix="[RULES]")
-                tts_chat(mc, "THE LAVA WITH RAISE EVERY 5 SECONDS", prefix="[RULES]")
-                tts_chat(mc, "DO NOT LEAVE THE ROOM BEFORE FINISHING THE GAME", prefix="[RULES]")
                 exit_code = play_first_passage(mc, player, all_pillars)
                 if exit_code == 0:
-                    tts_chat(mc, 'PUZZLE COMPLETED')
+                    tts_chat(mc, 'Puzzle completed')
                     completed['FirstPassage'] = True
                 else:
                     if exit_code == 1:
-                        tts_chat(mc, 'PUZZLE FAILED')
+                        tts_chat(mc, 'Puzzle failed')
                     elif exit_code == 2:
-                        tts_chat(mc, 'YOU LEFT THE ROOM BEFORE FINISHING THE PUZZLE')
-                    entered_room, completed = game_reset(mc)
+                        tts_chat(mc, 'You left the room before finishing the puzzle')
+                    tts_chat(mc, "The game will reset in 5 seconds")
+                    time.sleep(5)
+                    entered_room, completed, all_pillars = game_reset(mc)
 
             if (TRAP_ROOMS['Easy1'].contains(player_pos_2d, -STAGE_POS[0].x, -STAGE_POS[0].z)):
                 trap_box(mc, TRAP_ROOMS['Easy1'], STAGE_POS[0])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc)
+                inflated_room = TRAP_ROOMS['Easy1'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[0].x, STAGE_POS[0].y, inflated_room.top+STAGE_POS[0].z,
+                             inflated_room.right+STAGE_POS[0].x, STAGE_POS[0].y+13, inflated_room.bottom+STAGE_POS[0].z,
+                             block.AIR.id)
 
-            if (TRAP_ROOMS['Easy1'].contains(player_pos_2d, -STAGE_POS[0].x, -STAGE_POS[0].z)):
-                current_room = TRAP_ROOMS['Easy2']
+            if (TRAP_ROOMS['Easy2'].contains(player_pos_2d, -STAGE_POS[0].x, -STAGE_POS[0].z)):
+                trap_box(mc, TRAP_ROOMS['Easy2'], STAGE_POS[0])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc)
+                inflated_room = TRAP_ROOMS['Easy2'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[0].x, STAGE_POS[0].y, inflated_room.top+STAGE_POS[0].z,
+                             inflated_room.right+STAGE_POS[0].x, STAGE_POS[0].y+13, inflated_room.bottom+STAGE_POS[0].z,
+                             block.AIR.id)
 
             if completed['Quack'] and completed['FirstPassage']:
-                tts_chat(mc, "YOU NOW ADVANCE TO THE SECOND DUNGEON")
+                tts_chat(mc, "You now advance to the second dungeon")
                 enter_dungeon(mc, 1)
 
-        if player_pos.y >= STAGE_POS[1].y and player_pos.y <= STAGE_POS[1].y + 14:
-            if (PUZZLE_ROOMS['SecondPassage'].contains(player_pos_2d)
+        if player_pos.y >= STAGE_POS[1].y and player_pos.y <= STAGE_POS[1].y + 13:
+            if (PUZZLE_ROOMS['SecondPassage'].inflate(1).contains(player_pos_2d, -STAGE_POS[1].x, -STAGE_POS[1].z)
                     and not entered_room['SecondPassage']):
-                pass
+                entered_room['SecondPassage'] = True
+                exit_code = play_second_passage(mc)
+                if exit_code == 0:
+                    tts_chat(mc, 'Puzzle completed')
+                    completed['SecondPassage'] = True
+                else:
+                    if exit_code == 1:
+                        tts_chat(mc, 'Puzzle failed')
+                    elif exit_code == 2:
+                        tts_chat(mc, 'You left the room before finishing the puzzle')
+                    tts_chat(mc, "The game will reset in 5 seconds")
+                    time.sleep(5)
+                    entered_room, completed, all_pillars = game_reset(mc)
 
-            if (PUZZLE_ROOMS['Red'].contains(player_pos_2d)
+            if (PUZZLE_ROOMS['Red'].inflate(1).contains(player_pos_2d, -STAGE_POS[1].x, -STAGE_POS[1].z)
                     and not entered_room['Red']):
-                pass
+                entered_room['Red'] = True
+                exit_code = play_red(mc)
+                if exit_code == 0:
+                    tts_chat(mc, 'Puzzle completed')
+                    completed['Red'] = True
+                else:
+                    if exit_code == 1:
+                        tts_chat(mc, 'Puzzle failed')
+                    elif exit_code == 2:
+                        tts_chat(mc, 'You left the room before finishing the puzzle')
+                    tts_chat(mc, "The game will reset in 5 seconds")
+                    time.sleep(5)
+                    entered_room, completed, all_pillars = game_reset(mc)
 
             if (TRAP_ROOMS['Medium1'].contains(player_pos_2d, -STAGE_POS[1].x, -STAGE_POS[1].z)):
-                current_room = TRAP_ROOMS['Medium1']
+                trap_box(mc, TRAP_ROOMS['Medium1'], STAGE_POS[1])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc,1)
+                inflated_room = TRAP_ROOMS['Medium1'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[1].x, STAGE_POS[1].y, inflated_room.top+STAGE_POS[1].z,
+                             inflated_room.right+STAGE_POS[1].x, STAGE_POS[1].y+13, inflated_room.bottom+STAGE_POS[1].z,
+                             block.AIR.id)
 
             if (TRAP_ROOMS['Medium2'].contains(player_pos_2d, -STAGE_POS[1].x, -STAGE_POS[1].z)):
-                current_room = TRAP_ROOMS['Medium2']
+                trap_box(mc, TRAP_ROOMS['Medium2'], STAGE_POS[1])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc,1)
+                inflated_room = TRAP_ROOMS['Medium2'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[1].x, STAGE_POS[1].y, inflated_room.top+STAGE_POS[1].z,
+                             inflated_room.right+STAGE_POS[1].x, STAGE_POS[1].y+13, inflated_room.bottom+STAGE_POS[1].z,
+                             block.AIR.id)
 
             if (TRAP_ROOMS['Medium3'].contains(player_pos_2d, -STAGE_POS[1].x, -STAGE_POS[1].z)):
-                current_room = TRAP_ROOMS['Medium3']
+                trap_box(mc, TRAP_ROOMS['Medium3'], STAGE_POS[1])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc,1)
+                inflated_room = TRAP_ROOMS['Medium3'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[1].x, STAGE_POS[1].y, inflated_room.top+STAGE_POS[1].z,
+                             inflated_room.right+STAGE_POS[1].x, STAGE_POS[1].y+13, inflated_room.bottom+STAGE_POS[1].z,
+                             block.AIR.id)
 
             if completed['SecondPassage'] and completed['Red']:
-                tts_chat(mc, "YOU NOW ADVANCE TO THE THIRD DUNGEON")
-                enter_dungeon(mc, 1)
+                tts_chat(mc, "You now advance to the third dungeon")
+                enter_dungeon(mc, 2)
 
-        if player_pos.y >= STAGE_POS[2].y and player_pos.y <= STAGE_POS[2].y + 14:
-            if (PUZZLE_ROOMS['Quiz'].contains(player_pos_2d)
+        if player_pos.y >= STAGE_POS[2].y and player_pos.y <= STAGE_POS[2].y + 13:
+            if (PUZZLE_ROOMS['Quiz'].contains(player_pos_2d, -STAGE_POS[2].x, -STAGE_POS[2].z)
                     and not entered_room['Quiz']):
                 pass
 
-            if (PUZZLE_ROOMS['Chess'].contains(player_pos_2d)
+            if (PUZZLE_ROOMS['Chess'].contains(player_pos_2d, -STAGE_POS[2].x, -STAGE_POS[2].z)
                     and not entered_room['Chess']):
                 pass
 
             if (PUZZLE_ROOMS['Water'].contains(player_pos_2d, -STAGE_POS[2].x, -STAGE_POS[2].z)
                     and not entered_room['Water']):
                 entered_room['Water'] = True
-                tts_chat(mc, "YOU ENTER THE WATER Room")
-                tts_chat(mc, "SWIM TO THE SURFACE To receive further instructions")
-                tts_chat(mc, "DO NOT LEAVE THE ROOM BEFORE FINISHING THE GAME")
+                tts_chat(mc, "You enter the water room")
+                tts_chat(mc, "Swim to the surface to receive further instructions")
+                tts_chat(mc, "Do not leave the room before finishing the game")
                 exit_code = play_water(mc, player)
                 if exit_code == 0:
-                    tts_chat(mc, 'PUZZLE COMPLETED')
+                    tts_chat(mc, 'Puzzle completed')
                     completed['Water'] = True
                 else:
                     if exit_code == 1:
-                        tts_chat(mc, 'PUZZLE FAILED')
+                        tts_chat(mc, 'Puzzle failed')
                     elif exit_code == 2:
-                        tts_chat(mc, 'YOU LEFT THE ROOM BEFore finishing the puzzle')
-                    entered_room, completed = game_reset(mc)
+                        tts_chat(mc, 'You left the room before finishing the puzzle')
+                    tts_chat(mc, "The game will reset in 5 seconds")
+                    time.sleep(5)
+                    entered_room, completed, all_pillars = game_reset(mc)
 
             if (TRAP_ROOMS['Hard1'].contains(player_pos_2d, -STAGE_POS[2].x, -STAGE_POS[2].z)):
-                current_room = TRAP_ROOMS['Hard1']
+                trap_box(mc, TRAP_ROOMS['Hard1'], STAGE_POS[2])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc, 2)
+                inflated_room = TRAP_ROOMS['Hard1'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[2].x, STAGE_POS[2].y, inflated_room.top+STAGE_POS[2].z,
+                             inflated_room.right+STAGE_POS[2].x, STAGE_POS[2].y+13, inflated_room.bottom+STAGE_POS[2].z,
+                             block.AIR.id)
 
             if (TRAP_ROOMS['Hard2'].contains(player_pos_2d, -STAGE_POS[2].x, -STAGE_POS[2].z)):
-                current_room = TRAP_ROOMS['Hard2']
+                trap_box(mc, TRAP_ROOMS['Hard2'], STAGE_POS[2])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc, 2)
+                inflated_room = TRAP_ROOMS['Hard2'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[2].x, STAGE_POS[2].y, inflated_room.top+STAGE_POS[2].z,
+                             inflated_room.right+STAGE_POS[2].x, STAGE_POS[2].y+13, inflated_room.bottom+STAGE_POS[2].z,
+                             block.AIR.id)
 
             if (TRAP_ROOMS['Hard3'].contains(player_pos_2d, -STAGE_POS[2].x, -STAGE_POS[2].z)):
-                current_room = TRAP_ROOMS['Hard3']
+                trap_box(mc, TRAP_ROOMS['Hard2'], STAGE_POS[2])
+                tts_chat(mc, "You will now be teleported to a diffrent location")
+                enter_dungeon(mc, 2)
+                inflated_room = TRAP_ROOMS['Hard2'].inflate(-1)
+                mc.setBlocks(inflated_room.left+STAGE_POS[2].x, STAGE_POS[2].y, inflated_room.top+STAGE_POS[2].z,
+                             inflated_room.right+STAGE_POS[2].x, STAGE_POS[2].y+13, inflated_room.bottom+STAGE_POS[2].z,
+                             block.AIR.id)
 
             if completed['Water'] and completed['Chess'] and completed['Quiz']:
                 pass
