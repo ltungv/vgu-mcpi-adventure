@@ -5,5 +5,5 @@ Prototype with CraftBukkit server with RaspberryJuice plugin
 
 # How to
 
-This game current run by entering the mcpi_adventure.adventure module 
+This game currently play by running the mcpi_adventure.adventure module 
     "python -m mcpi_adventure.adventure"
